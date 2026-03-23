@@ -530,10 +530,10 @@ def make_move(move):
         elif board.is_stalemate() or board.is_insufficient_material():
             game_over   = True
             winner_text = "Draw!"
-        elif board.is_fifty_moves():
+        elif board.can_claim_fifty_moves():
             game_over   = True
             winner_text = "Draw by 50-move rule!"
-        elif board.is_repetition(3):
+        elif board.can_claim_threefold_repetition():
             game_over   = True
             winner_text = "Draw by repetition!"
 
