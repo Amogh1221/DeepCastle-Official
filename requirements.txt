@@ -1,0 +1,36 @@
+# DeepCastle — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# Chess
+python-chess>=1.999            # UCI engine bridge + board logic (game.py, deepcastle.py)
+
+# Deep Learning
+torch                          # Core ML framework (model, training)
+lightning                      # PyTorch Lightning training loop
+
+# Numerics
+numpy<2.0                      # Required by torch/lightning; pinned for ABI compat
+
+# Config / CLI
+tyro                           # Dataclass-based CLI (train scripts, config)
+
+# Optimizers (custom)
+ranger21                       # Ranger21 optimizer wrapper
+schedulefree                   # Schedule-free optimizer wrapper
+
+# GUI
+pygame                         # Chess GUI (game.py)
+
+# Monitoring / System
+psutil                         # CPU/memory monitoring
+GPUtil                         # GPU utilisation monitoring
+tensorboard                    # Training metrics visualisation
+
+# Code quality
+ruff                           # Linter / formatter
+
+# --- Removed ---
+# asciimatics  — not imported anywhere in the codebase
+# matplotlib   — not imported anywhere in the codebase
+# numba        — not imported anywhere in the codebase
+# requests     — not imported anywhere in the codebase
