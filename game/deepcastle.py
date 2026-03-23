@@ -5,8 +5,8 @@ import subprocess
 
 # Resolve engine path relative to this file so it works regardless of cwd
 _DEFAULT_ENGINE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "Cpp", "deepcastle.exe"
+    os.path.dirname(os.path.abspath(__file__)),
+    "deepcastle.exe"
 )
 
 class DeepCastle:
