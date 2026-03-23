@@ -63,8 +63,8 @@ class DeepCastle:
             # Extract final info for log
             d = last_info.get("depth") if last_info else "?"
             s = last_info.get("score") if last_info else None
-            n = last_info.get("nodes") if last_info else 0
-            nps = last_info.get("nps") if last_info else 0
+            n = last_info.get("nodes") if last_info and last_info.get("nodes") is not None else 0
+            nps = last_info.get("nps") if last_info and last_info.get("nps") is not None else 0
             score_str = f"{s.white()}" if s else "???"
             
             print(f"[{move_num}. {side}] Move: {result.move} | Depth: {d} | Score: {score_str} | Nodes: {n:,} | NPS: {nps:,}")
