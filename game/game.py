@@ -295,36 +295,51 @@ def draw_eval_bar():
     ex, ew = bx - 45, 30
     eh = BOARD_SIZE
     
-    # BG
-    pygame.draw.rect(screen, (0, 0, 0), (ex, by, ew, eh), border_radius=4)
-    pygame.draw.rect(screen, BORDER_COLOR, (ex, by, ew, eh), 2, border_radius=4)
+    # Professional Grayscale background (Black part)
+    pygame.draw.rect(screen, (32, 32, 28), (ex, by, ew, eh), border_radius=4)
+    pygame.draw.rect(screen, (80, 80, 70), (ex, by, ew, eh), 1, border_radius=4)
 
-    # Sigmoid like mapping for evaluation bar heights
-    # Map CP to 0.0-1.0 range
-    def cp_to_scale(cp):
-        # We want +1.0 to be ~60%, +3.0 to be ~80%, +10.0 to be ~95%
-        # A simple linear clamp for now
+    # Sigmoid like mapping for evaluation bar heights (nonlinear as requested)
+    def eval_to_scale(cp):
+        # A simple logistic function centered at 0.5
         v = (cp / 100.0)
-        return 0.5 + 0.5 * (math.atan(v / 4.0) / (math.pi/2))
+        # We want +1.0 (100cp) to be ~0.2 above center
+        # Scale factor ensures mates hit the ceiling
+        return 0.5 + 0.5 * (math.atan(v / 5.0) / (math.pi/2))
 
     global current_eval, eval_lerp
-    target_scale = cp_to_scale(current_eval)
-    eval_lerp += (target_scale - eval_lerp) * 0.05 # Smoothing
+    target_scale = eval_to_scale(current_eval)
+    eval_lerp += (target_scale - eval_lerp) * 0.1 # Faster smoothing for real-time
     
+    # White part (Bottom up)
     wh = int(eh * eval_lerp)
     if wh > 0:
-        pygame.draw.rect(screen, (240, 240, 240), (ex, by + eh - wh, ew, wh), border_radius=4)
+        # Off-white premium color
+        pygame.draw.rect(screen, (245, 245, 245), (ex, by + eh - wh, ew, wh), border_radius=4)
 
-    # Label
-    label_txt = f"{abs(current_eval/100.0):.1f}"
-    if abs(current_eval) > 8000: # Mate
-        mate_dist = (10000 - abs(current_eval))
-        label_txt = f"M{mate_dist}"
+    # Center Separator
+    pygame.draw.line(screen, (150, 150, 140), (ex, by + eh//2), (ex + ew, by + eh//2), 2)
+
+    # Logic for display text
+    abs_score = abs(current_eval)
+    if abs_score > 9000:
+        # It's a MATE
+        # (10000 - abs_score) gives the number of moves to mate roughly if using our converted engine score
+        mate_dist = int(10000 - abs_score)
+        label_txt = f"M{mate_dist}" if mate_dist < 100 else "M"
+    else:
+        label_txt = f"{abs(current_eval/100.0):.1f}"
+        if label_txt == "0.0": label_txt = "0"
         
-    color = (0, 0, 0) if eval_lerp > 0.5 else (255, 255, 255)
+    color = (0, 0, 0) if eval_lerp > 0.5 else (240, 240, 240)
     lab = font_tiny.render(label_txt, True, color)
     lx = ex + ew//2 - lab.get_width()//2
-    ly = by + eh - 20 if eval_lerp > 0.5 else by + 5
+    # Position text dynamically inside its color zone
+    if eval_lerp > 0.5:
+        ly = by + eh - 30 # Bottom text (White zone)
+    else:
+        ly = by + 10 # Top text (Black zone)
+        
     screen.blit(lab, (lx, ly))
 
 def draw_board():
@@ -501,13 +516,30 @@ def play_vs_bot_action():
     selecting_version = True
 
 def bot_think_worker(board_copy, depth, time_lim, is_bg=False):
-    global bot_move_result, bot_think_time, bot_nodes
+    global bot_move_result, bot_think_time, bot_nodes, current_eval
     try:
+        def on_info(info):
+            global current_eval, bot_nodes, bot_think_time
+            s = info.get("score")
+            if s:
+                cp = s.white().score()
+                if cp is not None: 
+                    current_eval = float(cp)
+                elif s.white().is_mate():
+                    m = s.white().mate()
+                    current_eval = (10000.0 - abs(m)) * (1 if m > 0 else -1)
+            
+            n = info.get("nodes")
+            if n is not None: bot_nodes = n
+            
+            t = info.get("time")
+            if t is not None: bot_think_time = t
+
         if bot:
-            bot_move_result = bot.select_move(board_copy, depth=depth, time_limit=time_lim, is_background=is_bg)
+            bot_move_result = bot.select_move(board_copy, depth=depth, time_limit=time_lim, is_background=is_bg, on_info=on_info)
+            # Final stats pull
             bot_think_time  = float(bot.think_time)
             bot_nodes       = int(bot.nodes)
-            global current_eval
             current_eval    = float(bot.last_score)
     except Exception as e:
         import traceback, random

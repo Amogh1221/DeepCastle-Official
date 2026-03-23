@@ -29,7 +29,7 @@ class DeepCastle:
             )
         return self._engine
 
-    def select_move(self, board, depth=None, time_limit=None, is_background=False):
+    def select_move(self, board, depth=None, time_limit=None, is_background=False, on_info=None):
         import time
         tl = time_limit or self.move_time
         engine = self._get_engine()
@@ -45,28 +45,39 @@ class DeepCastle:
                 n = info.get("nodes")
                 t = info.get("time")
                 s = info.get("score")
-                self.nodes = n or self.nodes
-                self.think_time = t or self.think_time
+                
+                if n is not None: self.nodes = n
+                if t is not None: self.think_time = t
+                
                 if s:
                     cp = s.white().score()
                     if cp is not None: self.last_score = float(cp)
                     elif s.white().is_mate():
-                        self.last_score = 10000.0 - s.white().mate() if s.white().mate() > 0 else -10000.0 - s.white().mate()
+                        mate_score = s.white().mate()
+                        # Convert mate score to high numeric score
+                        self.last_score = (10000.0 - abs(mate_score)) * (1 if mate_score > 0 else -1)
+
+                if on_info:
+                    on_info(info)
 
                 if t and t >= tl: break
 
         result = analysis.wait()
         
         if not is_background:
-            move_num = board.fullmove_number
-            side = "White" if board.turn == chess.WHITE else "Black"
+            # Final verification of stats
+            self.nodes = last_info.get("nodes") if last_info and last_info.get("nodes") is not None else self.nodes
+            self.think_time = last_info.get("time") if last_info and last_info.get("time") is not None else self.think_time
+            
             # Extract final info for log
             d = last_info.get("depth") if last_info else "?"
             s = last_info.get("score") if last_info else None
-            n = last_info.get("nodes") if last_info and last_info.get("nodes") is not None else 0
+            n = self.nodes
             nps = last_info.get("nps") if last_info and last_info.get("nps") is not None else 0
             score_str = f"{s.white()}" if s else "???"
             
+            move_num = board.fullmove_number
+            side = "White" if board.turn == chess.WHITE else "Black"
             print(f"[{move_num}. {side}] Move: {result.move} | Depth: {d} | Score: {score_str} | Nodes: {n:,} | NPS: {nps:,}")
             
         return result.move
