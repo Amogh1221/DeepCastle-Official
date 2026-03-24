@@ -12,7 +12,7 @@ from datetime import datetime
 # PAGE CONFIGURATION (Chess.com Aesthetic)
 # ============================================================
 st.set_page_config(
-    page_title="Deepcastle v7 | Professional Chess Engine",
+    page_title="Deepcastle7 | Professional Chess Engine",
     page_icon="♟️",
     layout="wide",
 )
@@ -56,7 +56,7 @@ st.markdown("""
 # ============================================================
 
 ENGINE_BIN = "engine/deepcastle_linux"
-NETWORK_BIG = "engine/nn-9a0cc2a62c52.nnue"
+NETWORK_CUSTOM = "engine/output.nnue"
 
 def ensure_engine_ready():
     # 1. Check for binary
@@ -77,14 +77,9 @@ def ensure_engine_ready():
             except Exception as e:
                 st.error(f"Error during compilation: {e}")
     
-    # 2. Check for NNUE brain
-    if not os.path.exists(NETWORK_BIG):
-        with st.status("Downloading Neural Network (100MB)...", expanded=True):
-            r = requests.get("https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue", stream=True)
-            with open(NETWORK_BIG, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            st.success("Network ready!")
+    # 2. Check for NNUE brain (Your Custom Model)
+    if not os.path.exists(NETWORK_CUSTOM):
+        st.warning(f"Could not find custom brain at {NETWORK_CUSTOM}. Please ensure it is pushed to GitHub.")
 
 # ============================================================
 # APP STATE
@@ -112,7 +107,7 @@ with col1:
 
     # The Chessboard component (Using SVG for maximum compatibility)
     board_svg = chess.svg.board(board=st.session_state.board, size=600)
-    st.image(board_svg, use_column_width=False)
+    st.image(board_svg, use_container_width=False)
     
     # Controls
     c1, c2, c3 = st.columns(3)
@@ -131,10 +126,14 @@ with col1:
 with col2:
     st.markdown("### 📊 Engine Insights")
     
-    # Evaluation Bar
+    # User Control for Thinking Time
+    think_time = st.slider("Bot Thinking Time (seconds)", 0.1, 5.0, 1.0, step=0.1)
+    
     eval_score = st.session_state.evaluation
     st.metric("Bot Evaluation", f"{eval_score:+0.2f}")
-    st.progress(max(0, min(100, 50 + eval_score * 5)), text="Advantage Meter")
+    # Progress must be 0.0 to 1.0
+    progress_val = max(0.0, min(1.0, (50 + eval_score * 5) / 100.0))
+    st.progress(progress_val, text="Advantage Meter")
 
     st.markdown("### 📜 Move Analysis")
     moves_text = ""
@@ -158,8 +157,9 @@ with col2:
                 if not st.session_state.board.is_game_over():
                     if os.name != 'nt':
                         engine = chess.engine.SimpleEngine.popen_uci(os.path.abspath(ENGINE_BIN))
-                        engine.configure({"EvalFile": os.path.abspath(NETWORK_BIG)})
-                        result = engine.play(st.session_state.board, chess.engine.Limit(time=0.5))
+                        # Use your custom network
+                        engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
+                        result = engine.play(st.session_state.board, chess.engine.Limit(time=think_time))
                         st.session_state.board.push(result.move)
                         st.session_state.move_history.append(result.move.uci())
                         engine.quit()

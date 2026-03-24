@@ -10,7 +10,6 @@ __pycache__/
 # Benchmarking/Test results
 *.pgn
 *.txt
-*.nnue
 
 # IDE
 .vscode/
