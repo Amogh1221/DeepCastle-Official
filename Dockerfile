@@ -16,40 +16,39 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy EVERYTHING from the repository (to get the NNUE and server files)
+# Copy ALL files from the repository
 COPY . .
 
 # ============================================================
-# GOD-TIER ENGINE BUILD (Verified Pathing)
+# DUAL-BRAIN ENGINE BUILD (Deepcastle v7 Hybrid)
 # ============================================================
+# 1. Clone fresh Stockfish source for reliable compilation
 RUN echo "Cloning fresh engine source..." && \
     git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 
-# 1. Search for output.nnue anywhere in the repo and copy it to the engine room
-RUN echo "Relocating neural brain..." && \
-    mkdir -p /app/engine && \
-    find /app -name "*.nnue" -exec cp {} /app/engine/output.nnue \; || echo "No NNUE found in repo."
-
-# 2. Build the engine
+# 2. Build the CPU-optimized binary
 WORKDIR /app/clean_engine/src
 RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
+    mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle && \
-    echo "Engine build complete!"
+    chmod +x /app/engine/deepcastle
 
-# ============================================================
-# FINAL CHECK: Ensure the Brain (NNUE) is exactly where it belongs
-# ============================================================
+# 3. Locate YOUR custom neural brain to set as the "Big Brain"
 WORKDIR /app/engine
-# If it's still missing, download a guaranteed high-performance brain (v17/18 compatible)
-RUN if [ ! -f "output.nnue" ]; then \
-    echo "Brain missing. Downloading specialized NNUE (v17 Ref)..." && \
-    wget https://github.com/official-stockfish/Stockfish/raw/master/src/nn-1111b1111b11.nnue -O output.nnue || \
-    wget https://tests.stockfishchess.org/api/nn/nn-5af11540bbfe.nnue -O output.nnue; \
+RUN echo "Mapping custom brains..." && \
+    # Search for any uploaded NNUE file in the repo and use it as primary
+    find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
+
+# 4. Failsafe: Download specific Dual-Brains if they are missing
+RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then \
+    wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; \
+    fi && \
+    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then \
+    wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; \
     fi
 
 # ============================================================
-# BACKEND SETUP
+# BACKEND SETUP & LAUNCHER
 # ============================================================
 WORKDIR /app/server
 RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
@@ -57,5 +56,6 @@ RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
 # Mandatory Hugging Face Port
 EXPOSE 7860
 
-# Start Engine API
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+# EXPLICIT LAUNCHER: Tell the cloud exactly where to find the script
+ENV PYTHONPATH=/app/server
+CMD ["python3", "/app/server/main.py"]
