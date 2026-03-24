@@ -1,29 +1,24 @@
 const fs = require('fs');
 let f = fs.readFileSync('src/app/components/GamePage.tsx', 'utf8');
-const lines = f.split('\n');
-const out = [];
-let skip = 0;
 
-for (let i = 0; i < lines.length; i++) {
-  if (skip > 0) { skip--; continue; }
-  const line = lines[i];
+const old = `} else if (data.type === "move") {\r\n            applyExternalMove(data.move);\r\n         }\r\n      };`;
+const replacement = `} else if (data.type === "move") {\r\n            applyExternalMove(data.move);\r\n         } else if (data.type === "opponent_disconnected") {\r\n            endGame(true, "Opponent disconnected — you win!");\r\n         }\r\n      };`;
 
-  // Detect the clock div in opponent header (lines 447-449)
-  if (line.includes('px-4 py-2 rounded-lg font-mono text-xl font-black') &&
-      lines[i+1] && lines[i+1].includes('formatTime(')) {
-    // Skip: this div line, formatTime line, closing </div>
-    skip = 2;
-    continue;
+if (f.includes(old)) {
+  f = f.replace(old, replacement);
+  fs.writeFileSync('src/app/components/GamePage.tsx', f);
+  console.log('Done!');
+} else {
+  // Try with LF
+  const old2 = `} else if (data.type === "move") {\n            applyExternalMove(data.move);\n         }\n      };`;
+  const rep2 = `} else if (data.type === "move") {\n            applyExternalMove(data.move);\n         } else if (data.type === "opponent_disconnected") {\n            endGame(true, "Opponent disconnected — you win!");\n         }\n      };`;
+  if (f.includes(old2)) {
+    f = f.replace(old2, rep2);
+    fs.writeFileSync('src/app/components/GamePage.tsx', f);
+    console.log('Done (LF)!');
+  } else {
+    console.log('Pattern not found. Checking context...');
+    const idx = f.indexOf('applyExternalMove(data.move)');
+    console.log('Found at index:', idx, '| Context:', JSON.stringify(f.slice(idx, idx+60)));
   }
-
-  // Detect the clock div in player footer (lines 517-519)
-  // Same pattern but one level deeper - handled by same check above
-
-  out.push(line);
 }
-
-f = out.join('\n');
-fs.writeFileSync('src/app/components/GamePage.tsx', f);
-
-const remaining = (f.match(/formatTime/g) || []).length;
-console.log('Remaining formatTime uses:', remaining);

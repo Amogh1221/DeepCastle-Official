@@ -64,6 +64,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
             setBotMessage("Opponent is ready! Game ON.");
          } else if (data.type === "move") {
             applyExternalMove(data.move);
+         } else if (data.type === "opponent_disconnected") {
+            endGame(true, "Opponent disconnected — you win!");
          }
       };
 

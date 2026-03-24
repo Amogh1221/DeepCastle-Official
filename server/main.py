@@ -44,15 +44,21 @@ manager = ConnectionManager()
 @app.websocket("/ws/{match_id}")
 async def websocket_endpoint(websocket: WebSocket, match_id: str):
     await manager.connect(websocket, match_id)
+    room = manager.active_connections.get(match_id, [])
+    # Notify others that someone joined
+    await manager.broadcast(json.dumps({"type": "join"}), match_id, exclude=websocket)
     try:
         while True:
             data = await websocket.receive_text()
-            # Relay the message (move, chat, etc) to others in the same room
+            # Relay the message (move, etc.) to others in the same room
             await manager.broadcast(data, match_id, exclude=websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket, match_id)
+        # Notify remaining players that opponent disconnected → they win
+        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
     except Exception:
         manager.disconnect(websocket, match_id)
+        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
 
 
 # Allow ALL for easy testing (we can restrict this later if needed)
