@@ -1,5 +1,6 @@
 import streamlit as st
 import chess
+import chess.svg
 import chess.engine
 import subprocess
 import os
@@ -63,9 +64,9 @@ def ensure_engine_ready():
         with st.status("Building Deepcastle Engine for Linux (This takes ~2 mins)...", expanded=True) as s:
             st.write("Compiling source code...")
             try:
-                # Compile for Linux ARCH
+                # Compile for Linux (Safe ARCH)
                 build_proc = subprocess.run(
-                    ["make", "-j", "build", "ARCH=x86-64-modern"], 
+                    ["make", "-j", "build", "ARCH=x86-64-sse41-popcnt"], 
                     cwd="engine/src", capture_output=True, text=True
                 )
                 if build_proc.returncode == 0:
