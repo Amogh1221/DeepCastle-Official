@@ -153,7 +153,7 @@ def interactive_board(fen):
     </script>
     """
     # Key changes every move to force re-render
-    return components.html(html_code, height=650, key=f"board_{st.session_state.board.fen()}")
+    return components.html(html_code, height=650)
 
 # ============================================================
 # ENGINE LOGIC
