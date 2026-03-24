@@ -19,43 +19,54 @@ WORKDIR /app
 # Copy ALL files from the repository
 COPY . .
 
+# DEBUG: List all files to see what actually arrived from GitHub
+RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
+    ls -R /app && \
+    echo "---------------------------------"
+
 # ============================================================
-# DUAL-BRAIN ENGINE BUILD (Deepcastle v7 Hybrid)
+# DUAL-BRAIN ENGINE BUILD
 # ============================================================
-# 1. Clone fresh Stockfish source for reliable compilation
 RUN echo "Cloning fresh engine source..." && \
     git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 
-# 2. Build the CPU-optimized binary
 WORKDIR /app/clean_engine/src
 RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
 
-# 3. Locate YOUR custom neural brain to set as the "Big Brain"
-WORKDIR /app/engine
-RUN echo "Mapping custom brains..." && \
-    # Search for any uploaded NNUE file in the repo and use it as primary
-    find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
-
-# 4. Failsafe: Download specific Dual-Brains if they are missing
-RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then \
-    wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; \
-    fi && \
-    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then \
-    wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; \
+# ============================================================
+# LAUNCHER PREPARATION (The Search & Destroy Fix)
+# ============================================================
+WORKDIR /app
+RUN echo "Searching for Launcher (main.py)..." && \
+    LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
+    if [ -n "$LAUNCHER_PATH" ]; then \
+        echo "Found launcher at: $LAUNCHER_PATH. Copying to root..."; \
+        cp "$LAUNCHER_PATH" /app/launcher.py; \
+    else \
+        echo "CRITICAL ERROR: main.py not found in the repository!"; \
+        exit 1; \
     fi
 
+# Map any NNUE files found in the repo
+RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
+
+# Failsafe Brains
+WORKDIR /app/engine
+RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
+    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
+
 # ============================================================
-# BACKEND SETUP & LAUNCHER
+# BACKEND SETUP
 # ============================================================
-WORKDIR /app/server
+WORKDIR /app
 RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
 
-# Mandatory Hugging Face Port
+# Set PYTHONPATH to include all potential source directories
+ENV PYTHONPATH="/app:/app/server"
 EXPOSE 7860
 
-# EXPLICIT LAUNCHER: Tell the cloud exactly where to find the script
-ENV PYTHONPATH=/app/server
-CMD ["python3", "/app/server/main.py"]
+# START: Use the guaranteed launcher in the root
+CMD ["python3", "/app/launcher.py"]
