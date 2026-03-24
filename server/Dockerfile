@@ -1,48 +1,36 @@
-# Use official Python image as a base
-FROM python:3.11-slim
+# Use Python 3.12 slim for smaller image
+FROM python:3.12-slim
 
-# Install system dependencies for Stockfish compilation
+# Install compilation tools and dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    g++ \
     make \
-    curl \
+    g++ \
+    wget \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy the engine source and compile it for Linux
-COPY engine /app/engine
+# Copy the whole repository (to build the engine)
+COPY . .
+
+# Build the C++ Engine
 WORKDIR /app/engine/src
-RUN make -j build ARCH=x86-64-modern
-RUN mv stockfish ../deepcastle_linux
+RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt
+RUN mv stockfish /app/engine/deepcastle
 
-# Return to base app dir
-WORKDIR /app
+# Copy NNUE (It should be in the engine/ folder in the host)
+# If it's missing, you can add a wget command here to download it from a URL.
+# COPY ../engine/output.nnue /app/engine/output.nnue
 
-# Copy the server code
-COPY server /app/server
+# Setup Python environment
 WORKDIR /app/server
+RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
 
-# Install Python requirements
-RUN pip install --no-cache-dir -r requirements.txt
+# Expose Hugging Face mandatory port
+EXPOSE 7860
 
-# Environment variables
-ENV ENGINE_PATH="/app/engine/deepcastle_linux"
-ENV NETWORK_BIG="/app/engine/nn-9a0cc2a62c52.nnue"
-ENV NETWORK_SMALL="/app/engine/nn-47fc8b7fff06.nnue"
-
-# Download networks if they don't exist yet (Fallback)
-RUN if [ ! -f $NETWORK_BIG ]; then \
-    curl -L https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue -o $NETWORK_BIG; \
-    fi
-RUN if [ ! -f $NETWORK_SMALL ]; then \
-    curl -L https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue -o $NETWORK_SMALL; \
-    fi
-
-# Expose the API port
-EXPOSE 8000
-
-# Start the server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI on 0.0.0.0:7860 (Hugging Face default)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
