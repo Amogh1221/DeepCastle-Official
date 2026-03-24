@@ -12,7 +12,7 @@ from PIL import Image
 from datetime import datetime
 
 # ============================================================
-# PAGE CONFIGURATION (Ghost Mode - Ultimate Clean)
+# PAGE CONFIGURATION (Ghost Mode)
 # ============================================================
 st.set_page_config(
     page_title="Deepcastle v7 | Professional Chess Engine",
@@ -69,10 +69,10 @@ st.markdown("""
 # ============================================================
 # UTILITIES & REPO PATHS
 # ============================================================
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENGINE_WINDOWS = os.path.join(ROOT_DIR, "engine", "deepcastle.exe")
-ENGINE_LINUX = os.path.join(ROOT_DIR, "engine", "deepcastle_linux")
-NETWORK_CUSTOM = os.path.join(ROOT_DIR, "engine", "output.nnue")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENGINE_WINDOWS = os.path.join(REPO_ROOT, "engine", "deepcastle.exe")
+ENGINE_LINUX = os.path.join(REPO_ROOT, "engine", "deepcastle_linux")
+NETWORK_CUSTOM = os.path.join(REPO_ROOT, "engine", "output.nnue")
 
 def get_engine_path():
     if os.name == 'nt': return ENGINE_WINDOWS
@@ -81,9 +81,9 @@ def get_engine_path():
 def ensure_engine_ready():
     # Only build on Linux (Streamlit Cloud)
     if os.name != 'nt' and not os.path.exists(ENGINE_LINUX):
-        with st.status("Initializing Neural Engine (Building for Cloud)...", expanded=True):
-            subprocess.run(["make", "-j", "build", "ARCH=x86-64-sse41-popcnt"], cwd=os.path.join(ROOT_DIR, "engine", "src"))
-            subprocess.run(["mv", os.path.join(ROOT_DIR, "engine", "src", "stockfish"), ENGINE_LINUX])
+        with st.status("Initializing Neural Engine...", expanded=True):
+            subprocess.run(["make", "-j", "build", "ARCH=x86-64-sse41-popcnt"], cwd=os.path.join(REPO_ROOT, "engine", "src"))
+            subprocess.run(["mv", os.path.join(REPO_ROOT, "engine", "src", "stockfish"), ENGINE_LINUX])
 
 # ============================================================
 # SESSION STATE
@@ -117,6 +117,7 @@ def interactive_board(fen):
 
     function onDragStart (source, piece, position, orientation) {{
         if (game.game_over()) return false;
+        // Turn-locking: User only plays White
         if (piece.search(/^b/) !== -1) return false;
     }}
 
@@ -129,10 +130,11 @@ def interactive_board(fen):
 
         if (move === null) return 'snapback';
 
+        // Notify Streamlit with UCI + Timestamp to ensure uniqueness
         if (window.parent.postMessage) {{
             window.parent.postMessage({{
                 type: 'streamlit:setComponentValue',
-                value: move.from + move.to
+                value: move.from + move.to + "_" + Date.now()
             }}, "*");
         }}
     }}
@@ -155,55 +157,63 @@ def interactive_board(fen):
     return components.html(html_code, height=620)
 
 # ============================================================
-# ENGINE LOGIC (With Pro-Logs)
+# ENGINE LOGIC (CRACH-PROOFED)
 # ============================================================
 def play_bot_turn():
     engine_path = get_engine_path()
+    
     if not os.path.exists(engine_path):
-        st.error(f"Engine not found at {engine_path}. Please build it first.")
+        st.error(f"Engine Binary Missing: {engine_path}")
         return
 
     with st.spinner("DeepCastle is analyzing..."):
-        engine = chess.engine.SimpleEngine.popen_uci(engine_path)
-        if os.path.exists(NETWORK_CUSTOM):
-            engine.configure({"EvalFile": NETWORK_CUSTOM})
-        
-        limit = chess.engine.Limit(time=st.session_state.get('think_time', 1.0))
-        
-        # PRO-ANALYSIS LOGGING (like game.py)
-        st.session_state.analysis_stats = []
-        with engine.analysis(st.session_state.board, limit) as analysis:
-            for info in analysis:
-                d = info.get("depth")
-                n = info.get("nodes")
-                t = info.get("time")
-                s = info.get("score")
-                pv = info.get("pv")
-                
-                if d and s and pv:
-                    score_val = s.white().score(mate_score=10000) / 100.0
-                    pv_str = " ".join([st.session_state.board.san(m) for m in pv[:5]]) # show top 5 moves
+        try:
+            engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+            
+            # Try to load custom NNUE
+            if os.path.exists(NETWORK_CUSTOM):
+                try:
+                    engine.configure({{"EvalFile": NETWORK_CUSTOM}})
+                except Exception as e:
+                    st.warning(f"Engine couldn't load custom brain: {e}. Using default.")
+            
+            limit = chess.engine.Limit(time=st.session_state.get('think_time', 1.0))
+            
+            # PRO-ANALYSIS LOGGING
+            st.session_state.analysis_stats = []
+            with engine.analysis(st.session_state.board, limit) as analysis:
+                for info in analysis:
+                    d = info.get("depth")
+                    n = info.get("nodes")
+                    t = info.get("time")
+                    s = info.get("score")
+                    pv = info.get("pv")
                     
-                    st.session_state.analysis_stats.insert(0, {
-                        "Depth": f"{d}/{info.get('seldepth', '?')}",
-                        "Time": f"{t:.2f}s",
-                        "Nodes": f"{n:,}",
-                        "Score": f"{score_val:+0.2f}",
-                        "PV": pv_str
-                    })
-                    
-                    # Terminal Log (Exactly like game.py)
-                    side = "White" if st.session_state.board.turn == chess.WHITE else "Black"
-                    print(f"[DeepCastle] Depth: {d} | Score: {score_val:+0.2f} | Nodes: {n:,} | PV: {pv_str}")
+                    if d and s and pv:
+                        score_val = s.white().score(mate_score=10000) / 100.0
+                        pv_str = " ".join([st.session_state.board.san(m) for m in pv[:5]])
+                        
+                        st.session_state.analysis_stats.insert(0, {{
+                            "Depth": f"{{d}}",
+                            "Time": f"{{t:.1f}}s",
+                            "Nodes": f"{{n:,}}",
+                            "Score": f"{{score_val:+0.2f}}",
+                            "PV": pv_str
+                        }})
+                        
+                        # Terminal Logs (game.py style)
+                        print(f"[Engine] Depth: {{d}} | Score: {{score_val:+0.2f}} | Nodes: {{n:,}}")
 
-        # Final Best Move
-        result = engine.play(st.session_state.board, limit)
-        st.session_state.board.push(result.move)
-        st.session_state.move_history.append({
-            "move": result.move.uci(),
-            "score": st.session_state.analysis_stats[0]["Score"] if st.session_state.analysis_stats else "???"
-        })
-        engine.quit()
+            # Execute Best Move
+            result = engine.play(st.session_state.board, limit)
+            st.session_state.board.push(result.move)
+            st.session_state.move_history.append({{
+                "move": result.move.uci(),
+                "score": st.session_state.analysis_stats[0]["Score"] if st.session_state.analysis_stats else "???"
+            }})
+            engine.quit()
+        except Exception as e:
+            st.error(f"Engine Error: {{e}}")
 
 # ============================================================
 # MAIN INTERFACE
@@ -211,33 +221,36 @@ def play_bot_turn():
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    # Logo & Brand
-    logo_file = os.path.join(ROOT_DIR, "game", "pieces.png")
+    # Official Branding
+    logo_file = os.path.join(REPO_ROOT, "game", "pieces.png")
     if os.path.exists(logo_file):
         st.image(logo_file, width=120)
     
-    st.markdown('<h1 class="main-header">DEEPCASTLE <span style="font-weight:100; font-style:italic">v7</span></h1>', unsafe_allow_html=True)
-    st.caption("Engine Core: Stockfish 16.1 • Neural Arch: HalfKAv2 • Hybrid Search")
+    st.markdown('<h1 class="main-header">DEEPCASTLE <span style="font-weight:300; font-style:italic">v7</span></h1>', unsafe_allow_html=True)
+    st.caption("Engine: Deepcastle Stockfish-Core • Neural Arch: HalfKAv2 • Hybrid Search")
     
     ensure_engine_ready()
 
-    # The Interactive Board
-    move_from_js = interactive_board(st.session_state.board.fen())
+    # Board Display
+    move_from_js_raw = interactive_board(st.session_state.board.fen())
 
-    # Move Processing
-    if move_from_js and move_from_js != st.session_state.last_processed_move:
+    # SYNCED MOVE PROCESSING
+    if move_from_js_raw and move_from_js_raw != st.session_state.last_processed_move:
+        # Extract UCI from UCI_Timestamp
+        move_uci = move_from_js_raw.split("_")[0]
         try:
-            move = chess.Move.from_uci(move_from_js)
+            move = chess.Move.from_uci(move_uci)
             if st.session_state.board.turn == chess.WHITE and move in st.session_state.board.legal_moves:
                 st.session_state.board.push(move)
-                st.session_state.move_history.append({"move": move_from_js, "score": "USR"})
-                st.session_state.last_processed_move = move_from_js
+                st.session_state.move_history.append({{"move": move_uci, "score": "USR"}})
+                st.session_state.last_processed_move = move_from_js_raw
                 
-                # BOT PLAYS BACK
+                # BOT AUTOMATICALLY PLAYS BACK
                 if not st.session_state.board.is_game_over():
                     play_bot_turn()
                 st.rerun()
-        except: pass
+        except Exception as e:
+            pass
 
 with col2:
     st.markdown("### ⚙️ Engine Settings")
@@ -247,11 +260,10 @@ with col2:
         index=2
     )
     
-    # Engine Analysis Table (The "Scid vs PC" look)
+    # Engine Analysis Table (Static Static for Pro look)
     if st.session_state.analysis_stats:
         st.markdown("### 📊 Search Analysis")
-        df = pd.DataFrame(st.session_state.analysis_stats)
-        st.table(df) # Static table for pro look
+        st.table(pd.DataFrame(st.session_state.analysis_stats).head(10)) 
     
     # Move History Detail
     st.markdown("### 📜 Final Evaluation Log")
@@ -259,11 +271,9 @@ with col2:
     for i, meta in enumerate(st.session_state.move_history):
         mv = meta["move"]
         score = meta["score"]
-        if i % 2 == 0: 
-            moves_text += f"{i//2 + 1}. <span style='color: white;'>{mv}</span> <small>({score})</small> "
-        else: 
-            moves_text += f"<span style='color: #5c6bc0;'>{mv}</span> <small>({score})</small><br>"
-    st.markdown(f'<div class="move-log">{moves_text}</div>', unsafe_allow_html=True)
+        if i % 2 == 0: moves_text += f"**{{i//2 + 1}}.** {{mv}} ({{score}}) "
+        else: moves_text += f"{mv} ({{score}})  \n"
+    st.markdown(f'<div class="move-log">{{moves_text}}</div>', unsafe_allow_html=True)
     
     if st.button("New Game", use_container_width=True):
         st.session_state.board = chess.Board()
