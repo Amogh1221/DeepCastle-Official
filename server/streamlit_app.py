@@ -48,7 +48,7 @@ st.markdown("""
         overflow-y: auto;
     }
 </style>
-""", unsafe_allow_stdio=True)
+""", unsafe_allow_html=True)
 
 # ============================================================
 # ENGINE MANAGEMENT (The Magic behind the curtains)
