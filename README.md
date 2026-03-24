@@ -11,7 +11,7 @@
 
 Unlike simply running Stockfish, DeepCastle uses its **own trained neural brain** (`output.nnue`) to make all positional judgments. The result: an engine estimated at **~3,604 Elo**, operating in super-grandmaster / top-engine territory.
 
-**Play against it live:** [deepcastle.vercel.app](https://deepcastle.vercel.app)
+**Play against it live:** [deepcastle.vercel.app](https://deep-castle-official.vercel.app/)
 
 ---
 
