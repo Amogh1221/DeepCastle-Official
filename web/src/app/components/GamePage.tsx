@@ -105,6 +105,39 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     return displayScore > 0 ? `+${displayScore.toFixed(2)}` : displayScore.toFixed(2);
   })();
 
+  // ── Material advantage ──
+  const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+  const getMaterialData = (currentFen: string) => {
+    const board = new Chess(currentFen);
+    const pieces = board.board().flat().filter(Boolean) as { type: string; color: string }[];
+    const whiteMat = pieces.filter(p => p.color === "w").reduce((s, p) => s + (PIECE_VALUES[p.type] ?? 0), 0);
+    const blackMat = pieces.filter(p => p.color === "b").reduce((s, p) => s + (PIECE_VALUES[p.type] ?? 0), 0);
+    const diff = whiteMat - blackMat; // positive = white leads
+    // Build captured lists (what's missing from the starting 39 points per side)
+    const startCount: Record<string, number> = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+    const whitePieces: Record<string, number> = {};
+    const blackPieces: Record<string, number> = {};
+    pieces.forEach(p => {
+      if (p.color === "w") whitePieces[p.type] = (whitePieces[p.type] ?? 0) + 1;
+      else blackPieces[p.type] = (blackPieces[p.type] ?? 0) + 1;
+    });
+    const capturedByWhite: string[] = [];
+    const capturedByBlack: string[] = [];
+    Object.entries(startCount).forEach(([type, count]) => {
+      const missing_black = count - (blackPieces[type] ?? 0);
+      const missing_white = count - (whitePieces[type] ?? 0);
+      for (let i = 0; i < missing_black; i++) capturedByWhite.push(type);
+      for (let i = 0; i < missing_white; i++) capturedByBlack.push(type);
+    });
+    return { diff, capturedByWhite, capturedByBlack };
+  };
+  const PIECE_SYMBOLS: Record<string, string> = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛" };
+  const { diff, capturedByWhite, capturedByBlack } = getMaterialData(fen);
+  // From the player's POV
+  const playerCaptures = playerColor === "white" ? capturedByWhite : capturedByBlack;
+  const opponentCaptures = playerColor === "white" ? capturedByBlack : capturedByWhite;
+  const playerAdvantage = playerColor === "white" ? diff : -diff;
+
   const [engineError, setEngineError] = useState<string | null>(null);
 
   const endGame = (isWin: boolean, subtitle: string) => {
@@ -393,8 +426,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           <div className="flex items-center justify-between p-3 bg-[#262421] rounded-lg border-b-2 border-slate-900 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className={`w-12 h-12 ${settings.mode === "ai" ? "bg-[#161619]" : "bg-emerald-600"} overflow-hidden rounded-lg flex items-center justify-center border-2 ${settings.mode === "ai" ? "border-white/10" : "border-emerald-400"}`}>
-                  {settings.mode === "ai" ? <img src="/DC_logo.png" alt="DeepCastle" className="w-full h-full object-contain p-1" /> : <Users className="w-8 h-8 text-white opacity-80" />}
+                <div className={`w-12 h-12 overflow-hidden rounded-lg flex items-center justify-center border-2 ${settings.mode === 'ai' ? 'border-white/10' : 'border-emerald-400'}`}>
+                  {settings.mode === "ai" ? <img src="/DC_logo.png" alt="DeepCastle" className="w-full h-full object-cover" /> : <Users className="w-8 h-8 text-white opacity-80" />}
                 </div>
                 { (thinking || (!isPlayerTurn && settings.mode === "p2p")) && (
                   <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
@@ -404,13 +437,24 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 )}
               </div>
               <div>
-                 <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
+               <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
                    {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
                    <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
                      {settings.mode === "ai" ? "3600+ Elo" : "Joined"}
                    </span>
                  </h3>
                  {settings.mode === "p2p" && !opponentJoined && <p className="text-[10px] text-amber-500 animate-pulse">Waiting for opponent...</p>}
+                 {/* Opponent's captured pieces */}
+                 {opponentCaptures.length > 0 && (
+                   <div className="flex items-center gap-1 mt-0.5">
+                     <span className="text-sm leading-none tracking-tighter text-slate-400">
+                       {opponentCaptures.map((p, i) => <span key={i}>{PIECE_SYMBOLS[p]}</span>)}
+                     </span>
+                     {-playerAdvantage > 0 && (
+                       <span className="text-[11px] font-bold text-slate-400">+{-playerAdvantage}</span>
+                     )}
+                   </div>
+                 )}
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -489,10 +533,23 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center border border-slate-600">
                 <div className={`w-6 h-6 rounded-sm ${playerColor === "white" ? "bg-slate-200" : "bg-[#1a1a1a] border border-slate-600"}`} />
               </div>
-              <span className="font-bold text-sm tracking-tight">
-                You{" "}
-                <span className="text-xs text-slate-500">({playerColor})</span>
-              </span>
+              <div>
+                <span className="font-bold text-sm tracking-tight">
+                  You{" "}
+                  <span className="text-xs text-slate-500">({playerColor})</span>
+                </span>
+                {/* Player's captured pieces */}
+                {playerCaptures.length > 0 && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-sm leading-none tracking-tighter text-slate-400">
+                      {playerCaptures.map((p, i) => <span key={i}>{PIECE_SYMBOLS[p]}</span>)}
+                    </span>
+                    {playerAdvantage > 0 && (
+                      <span className="text-[11px] font-bold text-emerald-400">+{playerAdvantage}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-4">
                {thinking && <span className="text-xs text-emerald-400 animate-pulse font-semibold">Engine thinking…</span>}
@@ -506,8 +563,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           {/* Bot Speech */}
           <section className="bg-[#262421] rounded-lg border border-[#3d3a36] shadow-xl">
             <div className="p-6 flex gap-4 min-h-[100px]">
-              <div className="w-12 h-12 flex-shrink-0 bg-[#1a1a1f] rounded-lg flex items-center justify-center border border-white/10 overflow-hidden">
-                <img src="/DC_logo.png" alt="Bot" className="w-full h-full object-contain p-1.5" />
+              <div className="w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg border border-white/10">
+                <img src="/DC_logo.png" alt="Bot" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1">
                 <div className="relative bg-[#3d3a36] p-4 rounded-xl rounded-tl-none border border-white/5">
