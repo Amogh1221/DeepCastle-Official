@@ -56,6 +56,9 @@ st.markdown("""
         max-height: 400px;
         overflow-y: auto;
     }
+    .stSpinner > div > div {
+        border-top-color: #5c6bc0 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,6 +87,8 @@ if 'move_history' not in st.session_state:
     st.session_state.move_history = []
 if 'evaluation' not in st.session_state:
     st.session_state.evaluation = 0.0
+if 'last_processed_move' not in st.session_state:
+    st.session_state.last_processed_move = ""
 
 # ============================================================
 # INTERACTIVE BOARD COMPONENT
@@ -107,10 +112,8 @@ def interactive_board(fen):
 
     function onDragStart (source, piece, position, orientation) {{
         if (game.game_over()) return false;
-        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {{
-            return false;
-        }}
+        // Only white moves (player is always white)
+        if (piece.search(/^b/) !== -1) return false;
     }}
 
     function onDrop (source, target) {{
@@ -122,7 +125,7 @@ def interactive_board(fen):
 
         if (move === null) return 'snapback';
 
-        // Notify Streamlit
+        // Notify Streamlit with the UCI string and a unique ID to force an update
         if (window.parent.postMessage) {{
             window.parent.postMessage({{
                 type: 'streamlit:setComponentValue',
@@ -149,7 +152,35 @@ def interactive_board(fen):
     $(window).resize(board.resize);
     </script>
     """
-    return components.html(html_code, height=650)
+    # Key changes every move to force re-render
+    return components.html(html_code, height=650, key=f"board_{st.session_state.board.fen()}")
+
+# ============================================================
+# ENGINE LOGIC
+# ============================================================
+def get_bot_move():
+    if not st.session_state.board.is_game_over():
+        if os.name != 'nt':
+            with st.spinner("DeepCastle is calculating..."):
+                engine = chess.engine.SimpleEngine.popen_uci(os.path.abspath(ENGINE_BIN))
+                if os.path.exists(NETWORK_CUSTOM):
+                    engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
+                
+                # Use current think_time slider value
+                limit = chess.engine.Limit(time=st.session_state.get('think_time', 1.0))
+                result = engine.analyse(st.session_state.board, limit)
+                
+                # Update Evaluation
+                score = result['score'].relative.score(mate_score=100000)
+                if score is not None:
+                    st.session_state.evaluation = score / 100.0
+                
+                # Play the best move
+                res = engine.play(st.session_state.board, limit)
+                st.session_state.board.push(res.move)
+                st.session_state.move_history.append(res.move.uci())
+                
+                engine.quit()
 
 # ============================================================
 # MAIN LAYOUT
@@ -164,40 +195,31 @@ with col1:
     move_from_js = interactive_board(st.session_state.board.fen())
 
     # Handle Human Move
-    if move_from_js:
+    if move_from_js and (move_from_js != st.session_state.last_processed_move or len(st.session_state.board.move_stack) % 2 == 0):
         try:
             move = chess.Move.from_uci(move_from_js)
-            if move in st.session_state.board.legal_moves:
+            # Only process if it's the player's turn (White)
+            if st.session_state.board.turn == chess.WHITE and move in st.session_state.board.legal_moves:
                 st.session_state.board.push(move)
                 st.session_state.move_history.append(move_from_js)
+                st.session_state.last_processed_move = move_from_js
                 
-                # Make bot move
-                if not st.session_state.board.is_game_over():
-                    if os.name != 'nt':
-                        with st.spinner("Bot is calculating..."):
-                            time.sleep(1) # Visual pause
-                            engine = chess.engine.SimpleEngine.popen_uci(os.path.abspath(ENGINE_BIN))
-                            # Check if custom model exists, otherwise let engine choose
-                            if os.path.exists(NETWORK_CUSTOM):
-                                engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
-                            
-                            # Using the think_time from col2
-                            result = engine.play(st.session_state.board, chess.engine.Limit(time=st.session_state.get('think_time', 1.0)))
-                            st.session_state.board.push(result.move)
-                            st.session_state.move_history.append(result.move.uci())
-                            engine.quit()
+                # BOT TURN IMMEDIATELY
+                get_bot_move()
                 st.rerun()
-        except:
+        except Exception as e:
+            # Illegal or invalid move input
             pass
 
 with col2:
-    st.markdown("### 📊 Engine Insights")
-    
-    # Store slider in session state so col1 can access it
     st.session_state.think_time = st.slider("Bot Thinking Time (sec)", 0.1, 5.0, 1.0, key='think_slider')
     
+    st.markdown("### 📊 Engine Insights")
     eval_score = st.session_state.evaluation
     st.metric("Bot Evaluation", f"{eval_score:+0.2f}")
+    
+    progress_val = max(0.0, min(1.0, (50 + eval_score * 5) / 100.0))
+    st.progress(progress_val, text="Advantage Meter")
     
     st.markdown("### 📜 Move Analysis")
     moves_text = ""
@@ -209,6 +231,8 @@ with col2:
     if st.button("New Game", use_container_width=True):
         st.session_state.board = chess.Board()
         st.session_state.move_history = []
+        st.session_state.last_processed_move = ""
+        st.session_state.evaluation = 0.0
         st.rerun()
 
 st.markdown("---")
