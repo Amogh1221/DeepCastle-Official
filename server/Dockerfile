@@ -13,17 +13,20 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy the whole repository (to build the engine)
+# Copy the whole repository
 COPY . .
 
-# Build the C++ Engine
+# Build the C++ Engine (Removing the non-existent 'build' target)
 WORKDIR /app/engine/src
-RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt
-RUN mv stockfish /app/engine/deepcastle
+RUN make -j$(nproc) ARCH=x86-64-sse41-popcnt
+RUN cp stockfish /app/engine/deepcastle
 
-# Copy NNUE (It should be in the engine/ folder in the host)
-# If it's missing, you can add a wget command here to download it from a URL.
-# COPY ../engine/output.nnue /app/engine/output.nnue
+# Fallback: Download the official NNUE if output.nnue is missing (to prevent crash)
+# Note: Deepcastle v7 uses a specific neural network.
+WORKDIR /app/engine
+RUN if [ ! -f "output.nnue" ]; then \
+    wget https://tests.stockfishchess.org/api/nn/nn-ae6a455a-c521-4f11-923f-5626359074df.nnue -O output.nnue; \
+    fi
 
 # Setup Python environment
 WORKDIR /app/server
