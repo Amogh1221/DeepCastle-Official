@@ -25,12 +25,15 @@ import {
   ChevronLeft,
   X,
   Crown,
+  Activity,
+  Target,
+  BarChart2,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type AppPage = "home" | "setup" | "game";
+type AppPage = "home" | "setup" | "game" | "review";
 type PlayerColor = "white" | "black";
 
 interface GameSettings {
@@ -387,7 +390,7 @@ function ResignModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
 }
 
 // ─── Resigned Result Modal ────────────────────────────────────────────────────
-function ResultModal({ message, onHome, onRematch }: { message: string; onHome: () => void; onRematch: () => void }) {
+function ResultModal({ message, onHome, onRematch, onReview }: { message: string; onHome: () => void; onRematch: () => void; onReview: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -410,7 +413,9 @@ function ResultModal({ message, onHome, onRematch }: { message: string; onHome: 
         </h3>
         <p className="text-slate-400 text-sm mb-2">{message}</p>
         <p className="text-[10px] text-slate-600 mb-8">DeepCastle accepts your surrender.</p>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3">
+          <button onClick={onReview} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"><Activity className="w-4 h-4"/> Game Review</button>
+          <div className="flex gap-3">
           <button
             id="result-home-btn"
             onClick={onHome}
@@ -426,14 +431,15 @@ function ResultModal({ message, onHome, onRematch }: { message: string; onHome: 
             Rematch
           </button>
         </div>
+        </div>
       </motion.div>
     </motion.div>
   );
 }
 
 // ─── Game Over Modal ──────────────────────────────────────────────────────────
-function GameOverModal({ title, subtitle, isWin, onHome, onRematch }: {
-  title: string; subtitle: string; isWin: boolean; onHome: () => void; onRematch: () => void;
+function GameOverModal({ title, subtitle, isWin, onHome, onRematch, onReview }: {
+  title: string; subtitle: string; isWin: boolean; onHome: () => void; onRematch: () => void; onReview: () => void;
 }) {
   return (
     <motion.div
@@ -455,7 +461,9 @@ function GameOverModal({ title, subtitle, isWin, onHome, onRematch }: {
           {title}
         </h3>
         <p className="text-slate-400 text-sm mb-8">{subtitle}</p>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3">
+          <button onClick={onReview} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"><Activity className="w-4 h-4"/> Game Review</button>
+          <div className="flex gap-3">
           <button onClick={onHome} className="flex-1 py-3 bg-[#262621] hover:bg-[#30302a] border border-white/10 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
             <ChevronLeft className="w-4 h-4" /> Home
           </button>
@@ -463,16 +471,18 @@ function GameOverModal({ title, subtitle, isWin, onHome, onRematch }: {
             Rematch
           </button>
         </div>
+        </div>
       </motion.div>
     </motion.div>
   );
 }
 
 // ─── Game Page ────────────────────────────────────────────────────────────────
-function GamePage({ settings, onHome, onRematch }: {
+function GamePage({ settings, onHome, onRematch, onReview }: {
   settings: GameSettings;
   onHome: () => void;
   onRematch: () => void;
+  onReview: (moves: string[]) => void;
 }) {
   const playerColor = settings.playerColor; // "white" | "black"
   const playerChessColor = playerColor === "white" ? "w" : "b";
@@ -846,12 +856,14 @@ function GamePage({ settings, onHome, onRematch }: {
               isWin={gameResult.isWin}
               onHome={onHome}
               onRematch={onRematch}
+              onReview={() => onReview(moveHistory.map(m => m.san))}
             />
           ) : (
             <ResultModal
               message="A brave decision. DeepCastle accepts."
               onHome={onHome}
               onRematch={onRematch}
+              onReview={() => onReview(moveHistory.map(m => m.san))}
             />
           )
         )}
@@ -1114,16 +1126,170 @@ function GamePage({ settings, onHome, onRematch }: {
   );
 }
 
+
+// ─── Review Page ──────────────────────────────────────────────────────────────
+function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves: string[]; onHome: () => void }) {
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentPly, setCurrentPly] = useState(0);
+  const [error, setError] = useState<string|null>(null);
+
+  // Generate board state on the fly
+  const currentFen = React.useMemo(() => {
+    const g = new Chess();
+    for(let i=0; i<currentPly; i++) {
+        try { g.move(moves[i]); } catch(e) {}
+    }
+    return g.fen();
+  }, [moves, currentPly]);
+
+  useEffect(() => {
+    async function runAnalysis() {
+      try {
+        const res = await fetch(`${API_URL}/analyze-game`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            moves,
+            time_per_move: 0.1,
+            player_color: settings.playerColor
+          })
+        });
+        if(!res.ok) throw new Error("Analysis failed");
+        const data = await res.json();
+        setAnalysis(data);
+      } catch(err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    runAnalysis();
+    setCurrentPly(moves.length); // go to end initially
+  }, [moves, settings.playerColor]);
+
+  // Which ply is the current player move? (If player is white, ply 1, 3, 5 are theirs. 1-indexed)
+  const isPlayerMove = settings.playerColor === "white" ? currentPly % 2 !== 0 : currentPly % 2 === 0;
+  
+  // Find classification for current layout
+  // MoveAnalysis uses 1-based indices (1st move, 2nd move in the array of player moves, not ply!)
+  // It's easier: analysis.moves is ordered by player moves.
+  const currentMoveAnalysis = isPlayerMove && analysis 
+      ? analysis.moves.find((m: any) => m.fen.split(" ")[0] === currentFen.split(" ")[0] || m.san === moves[currentPly-1]) 
+      : null;
+
+  return (
+    <main className="min-h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-4">
+       {loading ? (
+           <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 text-transparent bg-clip-text">DeepCastle is analyzing your game...</p>
+           </div>
+       ) : error ? (
+           <div className="text-center">
+              <p className="text-red-400 font-bold text-xl mb-4">Error: {error}</p>
+              <button onClick={onHome} className="py-2 px-6 bg-slate-800 rounded">Go Home</button>
+           </div>
+       ) : (
+           <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-10 gap-6">
+              {/* BOARD */}
+              <div className="lg:col-span-6 flex flex-col gap-4">
+                 <div className="w-full aspect-square bg-[#1a1a1f] p-4 rounded-xl border border-white/5 shadow-2xl">
+                    <Chessboard 
+                       options={{
+                          position: currentFen, 
+                          boardOrientation: settings.playerColor,
+                          animationDurationInMs: 200,
+                          allowDragging: false,
+                          darkSquareStyle: { backgroundColor: "#779556" },
+                          lightSquareStyle: { backgroundColor: "#ebecd0" },
+                          boardStyle: { borderRadius: "4px" }
+                       }}
+                    />
+                 </div>
+                 
+                 <div className="flex items-center justify-between bg-[#262421] p-4 rounded-xl border border-white/5">
+                    <button onClick={() => setCurrentPly(Math.max(0, currentPly-1))} className="p-3 bg-black/40 hover:bg-black/60 rounded">
+                        <ChevronLeft className="w-6 h-6"/>
+                    </button>
+                    <div className="text-center">
+                       {currentMoveAnalysis ? (
+                           <>
+                             <p className={`text-xl font-black ${
+                                currentMoveAnalysis.classification === "Brilliant" ? "text-cyan-400" :
+                                currentMoveAnalysis.classification === "Best" ? "text-emerald-400" :
+                                currentMoveAnalysis.classification === "Blunder" ? "text-red-500" :
+                                "text-amber-400"
+                             }`}>{currentMoveAnalysis.classification}</p>
+                             <p className="text-xs text-slate-400">Centipawn Loss: {Math.round(currentMoveAnalysis.cpl)}</p>
+                           </>
+                       ) : (
+                           <p className="text-xl font-bold text-slate-500">{currentPly === 0 ? "Start" : "Opponent's Move"}</p>
+                       )}
+                    </div>
+                    <button onClick={() => setCurrentPly(Math.min(moves.length, currentPly+1))} className="p-3 bg-black/40 hover:bg-black/60 rounded">
+                        <ChevronRight className="w-6 h-6"/>
+                    </button>
+                 </div>
+              </div>
+              
+              {/* STATS AREA */}
+              <div className="lg:col-span-4 flex flex-col gap-4">
+                  <div className="bg-gradient-to-br from-[#1a1a1f] to-[#161619] p-6 rounded-xl border border-emerald-500/20 shadow-2xl">
+                      <h2 className="text-2xl font-black mb-6 flex items-center gap-2 text-emerald-400"><Target className="w-6 h-6"/> Game Review</h2>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-8">
+                         <div className="bg-black/40 p-4 rounded-xl text-center">
+                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Accuracy</p>
+                            <p className="text-4xl font-black text-emerald-400">{analysis?.accuracy}%</p>
+                         </div>
+                         <div className="bg-black/40 p-4 rounded-xl text-center">
+                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Performance</p>
+                            <p className="text-4xl font-black text-amber-400">{analysis?.estimated_elo}</p>
+                         </div>
+                      </div>
+
+                      <div className="space-y-3">
+                         {Object.entries(analysis?.counts || {}).filter(([_, count]: any) => count > 0).map(([cls, count]: any) => (
+                             <div key={cls} className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                                <span className={`font-bold ${
+                                    cls === "Brilliant" ? "text-cyan-400" :
+                                    cls === "Best" || cls === "Excellent" ? "text-emerald-400" :
+                                    cls === "Blunder" ? "text-red-500" :
+                                    "text-amber-400"
+                                }`}>{cls}</span>
+                                <span className="text-white font-black">{count}</span>
+                             </div>
+                         ))}
+                      </div>
+
+                      <div className="mt-8">
+                         <button onClick={onHome} className="w-full py-4 bg-[#262621] hover:bg-[#30302a] border border-white/10 rounded-xl font-bold transition-all">
+                            Back to Home
+                         </button>
+                      </div>
+                  </div>
+              </div>
+           </div>
+       )}
+    </main>
+  );
+}
+
 // ─── Root App ─────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [page, setPage] = useState<AppPage>("home");
   const [settings, setSettings] = useState<GameSettings>({ playerColor: "white", thinkTime: 1.0 });
+
+const [reviewMoves, setReviewMoves] = useState<string[]>([]);
 
   function handlePlay() { setPage("setup"); }
   function handleBack() { setPage("home"); }
   function handleStart(s: GameSettings) { setSettings(s); setPage("game"); }
   function handleHome() { setPage("home"); }
   function handleRematch() { setPage("setup"); }
+  function handleReview(moves: string[]) { setReviewMoves(moves); setPage("review"); }
 
   return (
     <AnimatePresence mode="wait">
@@ -1139,7 +1305,12 @@ export default function App() {
       )}
       {page === "game" && (
         <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <GamePage settings={settings} onHome={handleHome} onRematch={handleRematch} />
+          <GamePage settings={settings} onHome={handleHome} onRematch={handleRematch} onReview={handleReview} />
+        </motion.div>
+      )}
+      {page === "review" && (
+        <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <ReviewPage settings={settings} moves={reviewMoves} onHome={handleHome} />
         </motion.div>
       )}
     </AnimatePresence>
