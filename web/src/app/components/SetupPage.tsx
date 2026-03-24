@@ -12,7 +12,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
   const [thinkTime, setThinkTime] = useState(1.0);
   const [mode, setMode] = useState<GameMode>("ai");
 
-  const engineTimeOptions = [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0];
+  const engineTimeOptions = [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0];
 
   const handleStart = () => {
     let resolvedColor = playerColor;
@@ -48,8 +48,8 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
 
         <div className="bg-[#161619] border border-white/5 rounded-3xl p-8 shadow-2xl">
           <h2 className="font-black text-2xl mb-8 flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl flex items-center justify-center">
-              <RefreshCw className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-[#1a1a1f] rounded-xl flex items-center justify-center border border-white/10 overflow-hidden">
+              <img src="/DC_logo.png" alt="Setup" className="w-full h-full object-contain p-1.5" />
             </div>
             Game Setup
           </h2>
@@ -60,13 +60,13 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
               onClick={() => setMode("ai")}
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "ai" ? "bg-[#262621] text-emerald-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
-              <Cpu className="w-4 h-4"/> Against AI
+              <Cpu className="w-4 h-4" /> Against AI
             </button>
             <button
               onClick={() => setMode("p2p")}
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "p2p" ? "bg-[#262621] text-indigo-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
-              <Users className="w-4 h-4"/> Play vs Friend
+              <Users className="w-4 h-4" /> Play vs Friend
             </button>
           </div>
 
@@ -77,18 +77,16 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
               <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => setPlayerColor("white")}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                    playerColor === "white" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
-                  }`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${playerColor === "white" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                    }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-white shadow-lg border border-white/20" />
                   <span className="text-xs font-bold">White</span>
                 </button>
                 <button
                   onClick={() => setPlayerColor("random")}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                    playerColor === "random" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
-                  }`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${playerColor === "random" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                    }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-white to-[#1a1a1a] border border-slate-500 flex items-center justify-center font-bold text-xs text-white pb-[2px]">
                     ?
@@ -97,9 +95,8 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                 </button>
                 <button
                   onClick={() => setPlayerColor("black")}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                    playerColor === "black" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
-                  }`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${playerColor === "black" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                    }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-[#1a1a1a] border border-slate-700" />
                   <span className="text-xs font-bold">Black</span>
@@ -118,9 +115,8 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                     <button
                       key={t}
                       onClick={() => setThinkTime(t)}
-                      className={`py-2 px-3 rounded-lg text-[10px] font-black border transition-all flex-1 ${
-                        thinkTime === t ? "border-indigo-500 bg-indigo-500/10 text-indigo-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
-                      }`}
+                      className={`py-2 px-3 rounded-lg text-[10px] font-black border transition-all flex-[1_0_21%] ${thinkTime === t ? "border-indigo-500 bg-indigo-500/10 text-indigo-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
+                        }`}
                     >
                       {t < 1 ? Math.round(t * 1000) + "ms" : t + "s"}
                     </button>
@@ -134,11 +130,10 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
             onClick={handleStart}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`w-full py-4 mt-8 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all border ${
-              mode === "p2p"
+            className={`w-full py-4 mt-8 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all border ${mode === "p2p"
                 ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-[0_0_30px_rgba(99,102,241,0.35)] border-indigo-400/30"
                 : "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-[0_0_30px_rgba(16,185,129,0.35)] border-emerald-400/30"
-            }`}
+              }`}
           >
             {mode === "p2p" ? <Users className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             {mode === "p2p" ? "Create Challenge" : "Start Game"}

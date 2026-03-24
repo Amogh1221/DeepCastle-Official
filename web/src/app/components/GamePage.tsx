@@ -393,8 +393,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           <div className="flex items-center justify-between p-3 bg-[#262421] rounded-lg border-b-2 border-slate-900 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className={`w-12 h-12 ${settings.mode === "ai" ? "bg-indigo-600" : "bg-emerald-600"} rounded-lg flex items-center justify-center border-2 ${settings.mode === "ai" ? "border-indigo-400" : "border-emerald-400"}`}>
-                  {settings.mode === "ai" ? <Cpu className="w-8 h-8 text-white opacity-80" /> : <Users className="w-8 h-8 text-white opacity-80" />}
+                <div className={`w-12 h-12 ${settings.mode === "ai" ? "bg-[#161619]" : "bg-emerald-600"} overflow-hidden rounded-lg flex items-center justify-center border-2 ${settings.mode === "ai" ? "border-white/10" : "border-emerald-400"}`}>
+                  {settings.mode === "ai" ? <img src="/DC_logo.png" alt="DeepCastle" className="w-full h-full object-contain p-1" /> : <Users className="w-8 h-8 text-white opacity-80" />}
                 </div>
                 { (thinking || (!isPlayerTurn && settings.mode === "p2p")) && (
                   <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
@@ -506,8 +506,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           {/* Bot Speech */}
           <section className="bg-[#262421] rounded-lg border border-[#3d3a36] shadow-xl">
             <div className="p-6 flex gap-4 min-h-[100px]">
-              <div className="w-12 h-12 flex-shrink-0 bg-indigo-600/20 rounded-lg flex items-center justify-center border border-indigo-500/30">
-                <Cpu className="w-7 h-7 text-indigo-400" />
+              <div className="w-12 h-12 flex-shrink-0 bg-[#1a1a1f] rounded-lg flex items-center justify-center border border-white/10 overflow-hidden">
+                <img src="/DC_logo.png" alt="Bot" className="w-full h-full object-contain p-1.5" />
               </div>
               <div className="flex-1">
                 <div className="relative bg-[#3d3a36] p-4 rounded-xl rounded-tl-none border border-white/5">

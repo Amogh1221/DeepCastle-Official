@@ -67,9 +67,9 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
     <main className="min-h-screen bg-[#0d0d0f] text-slate-100 overflow-x-hidden">
       {/* ── Ambient bg ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-indigo-700/10 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-violet-700/10 blur-[120px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-indigo-900/5 blur-[80px]" />
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-slate-700/5 blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-emerald-700/5 blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-slate-900/5 blur-[80px]" />
       </div>
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
@@ -83,8 +83,8 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
         >
           {/* Logo */}
           <div className="relative mb-8">
-            <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center shadow-[0_0_80px_rgba(99,102,241,0.4)] border border-indigo-500/30">
-              <Cpu className="w-14 h-14 text-white" />
+            <div className="w-28 h-28 rounded-3xl bg-[#161619] flex items-center justify-center shadow-[0_0_80px_rgba(255,255,255,0.05)] border border-white/10 overflow-hidden">
+              <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-contain p-2" />
             </div>
             <div className="absolute -bottom-2 -right-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
               Stable
@@ -104,9 +104,9 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
             onClick={onPlay}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
-            className="group relative flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-2xl font-black text-lg shadow-[0_0_40px_rgba(99,102,241,0.5)] transition-all duration-200 border border-indigo-400/30"
+            className="group relative flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 rounded-2xl font-black text-lg shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all duration-200 border border-emerald-400/30"
           >
-            <Play className="w-5 h-5" />
+            <Play className="w-5 h-5 flex-shrink-0" />
             Play DeepCastle
             <div className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
           </motion.button>
