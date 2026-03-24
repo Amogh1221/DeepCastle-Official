@@ -28,6 +28,7 @@ import {
   Activity,
   Target,
   BarChart2,
+  BookOpen,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
@@ -63,8 +64,8 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
     {
       icon: <Trophy className="w-6 h-6" />,
       label: "Estimated Elo",
-      value: "~3604",
-      sub: "Calibrated vs Stockfish 14",
+      value: "3600+",
+      sub: "Calibrated vs Stockfish 18",
       color: "from-amber-500 to-orange-600",
     },
     {
@@ -100,7 +101,7 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
   const timeline = [
     { version: "v1–v5", label: "HCE Era", desc: "Hand-crafted evaluation functions, PST tables, material balance." },
     { version: "v6", label: "NNUE Born", desc: "First neural net evaluation trained on large_gensfen_multipvdiff_100_d9.binpack — 100M+ Stockfish self-play positions at depth 9." },
-    { version: "v7", label: "Hybrid Engine", desc: "NNUE + enhanced search, better pruning, faster move ordering, deployed on Hugging Face Spaces." },
+    { version: "Current", label: "Hybrid Engine", desc: "NNUE + enhanced search, better pruning, faster move ordering, deployed on Hugging Face Spaces." },
   ];
 
   return (
@@ -127,7 +128,7 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
               <Cpu className="w-14 h-14 text-white" />
             </div>
             <div className="absolute -bottom-2 -right-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
-              v7
+              Stable
             </div>
           </div>
 
@@ -514,7 +515,7 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
   const [loadingHint, setLoadingHint] = useState(false);
 
   // Custom arrows for react-chessboard
-  const arrows: [string, string, string?][] = hintArrow ? [[hintArrow[0], hintArrow[1], "rgba(255, 200, 0, 0.85)"]] : [];
+  const arrows: [string, string, string?][] = hintArrow ? [[hintArrow[0], hintArrow[1], "rgba(163, 209, 96, 0.8)"]] : [];
 
   // ── Eval bar logic ──
   // score from API is from white's POV (positive = white winning)
@@ -785,11 +786,11 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
   }
 
   function forceUndo() {
-    const g = new Chess(gameRef.current.fen());
-    g.undo(); g.undo();
-    const fresh = new Chess(g.fen());
-    gameRef.current = fresh;
-    setFen(fresh.fen());
+    const g = gameRef.current;
+    if (g.history().length < 2) return;
+    g.undo();
+    g.undo();
+    setFen(g.fen());
     setMoveHistory(h => h.slice(0, -2));
     setSquareStyles({});
     setMoveFrom(null);
@@ -917,9 +918,9 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
                 )}
               </div>
               <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
-                Deepcastle v7{" "}
+                DeepCastle{" "}
                 <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
-                  3604 Elo
+                  3600+ Elo
                 </span>
               </h3>
             </div>
@@ -1172,8 +1173,6 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
   const isPlayerMove = settings.playerColor === "white" ? currentPly % 2 !== 0 : currentPly % 2 === 0;
   
   // Find classification for current layout
-  // MoveAnalysis uses 1-based indices (1st move, 2nd move in the array of player moves, not ply!)
-  // It's easier: analysis.moves is ordered by player moves.
   const currentMoveAnalysis = isPlayerMove && analysis 
       ? analysis.moves.find((m: any) => m.fen.split(" ")[0] === currentFen.split(" ")[0] || m.san === moves[currentPly-1]) 
       : null;
@@ -1207,65 +1206,112 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
                        }}
                     />
                  </div>
-                 
-                 <div className="flex items-center justify-between bg-[#262421] p-4 rounded-xl border border-white/5">
-                    <button onClick={() => setCurrentPly(Math.max(0, currentPly-1))} className="p-3 bg-black/40 hover:bg-black/60 rounded">
-                        <ChevronLeft className="w-6 h-6"/>
-                    </button>
-                    <div className="text-center">
-                       {currentMoveAnalysis ? (
-                           <>
-                             <p className={`text-xl font-black ${
-                                currentMoveAnalysis.classification === "Brilliant" ? "text-cyan-400" :
-                                currentMoveAnalysis.classification === "Best" ? "text-emerald-400" :
-                                currentMoveAnalysis.classification === "Blunder" ? "text-red-500" :
-                                "text-amber-400"
-                             }`}>{currentMoveAnalysis.classification}</p>
-                             <p className="text-xs text-slate-400">Centipawn Loss: {Math.round(currentMoveAnalysis.cpl)}</p>
-                           </>
-                       ) : (
-                           <p className="text-xl font-bold text-slate-500">{currentPly === 0 ? "Start" : "Opponent's Move"}</p>
-                       )}
-                    </div>
-                    <button onClick={() => setCurrentPly(Math.min(moves.length, currentPly+1))} className="p-3 bg-black/40 hover:bg-black/60 rounded">
-                        <ChevronRight className="w-6 h-6"/>
-                    </button>
-                 </div>
               </div>
               
-              {/* STATS AREA */}
-              <div className="lg:col-span-4 flex flex-col gap-4">
-                  <div className="bg-gradient-to-br from-[#1a1a1f] to-[#161619] p-6 rounded-xl border border-emerald-500/20 shadow-2xl">
-                      <h2 className="text-2xl font-black mb-6 flex items-center gap-2 text-emerald-400"><Target className="w-6 h-6"/> Game Review</h2>
+              {/* STATS AREA + CONTROLS */}
+              <div className="lg:col-span-4 flex flex-col gap-4 lg:min-h-[600px]">
+                  <div className="bg-gradient-to-br from-[#1a1a1f] to-[#161619] p-6 rounded-xl border border-emerald-500/20 shadow-2xl flex flex-col flex-1">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-black flex items-center gap-2 text-emerald-400"><Target className="w-6 h-6"/> Game Review</h2>
+                        <button onClick={onHome} className="p-2 hover:bg-white/5 rounded-lg text-slate-500 hover:text-white transition-colors">
+                           <X className="w-5 h-5" />
+                        </button>
+                      </div>
                       
-                      <div className="grid grid-cols-2 gap-4 mb-8">
-                         <div className="bg-black/40 p-4 rounded-xl text-center">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Accuracy</p>
-                            <p className="text-4xl font-black text-emerald-400">{analysis?.accuracy}%</p>
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                         <div className="bg-black/40 p-4 rounded-xl text-center border border-white/5">
+                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-widest">Accuracy</p>
+                            <p className="text-3xl font-black text-emerald-400">{analysis?.accuracy}%</p>
                          </div>
-                         <div className="bg-black/40 p-4 rounded-xl text-center">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Performance</p>
-                            <p className="text-4xl font-black text-amber-400">{analysis?.estimated_elo}</p>
+                         <div className="bg-black/40 p-4 rounded-xl text-center border border-white/5">
+                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-widest">Performance</p>
+                            <p className="text-3xl font-black text-amber-400">{analysis?.estimated_elo}</p>
                          </div>
                       </div>
 
-                      <div className="space-y-3">
+                      {/* Move Context */}
+                      <div className="mb-6 bg-black/40 p-5 rounded-xl border border-white/5 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 rotate-12 group-hover:opacity-10 transition-opacity">
+                           <Activity className="w-16 h-16"/>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                           <span className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Current Position</span>
+                           <span className="text-xs font-bold text-slate-300 bg-white/5 px-2 py-0.5 rounded">Move {Math.ceil(currentPly / 2)}</span>
+                        </div>
+                        {currentMoveAnalysis ? (
+                           <div className="flex items-center gap-4">
+                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl border-2 ${
+                                currentMoveAnalysis.classification === "Brilliant" ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" :
+                                currentMoveAnalysis.classification === "Best" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
+                                currentMoveAnalysis.classification === "Blunder" ? "bg-red-500/10 text-red-500 border-red-500/30" :
+                                "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                              }`}>
+                                {currentMoveAnalysis.classification[0]}
+                              </div>
+                              <div>
+                                 <p className={`text-xl font-black tracking-tighter ${
+                                    currentMoveAnalysis.classification === "Brilliant" ? "text-cyan-400" :
+                                    currentMoveAnalysis.classification === "Best" ? "text-emerald-400" :
+                                    currentMoveAnalysis.classification === "Blunder" ? "text-red-500" :
+                                    "text-amber-400"
+                                 }`}>{currentMoveAnalysis.classification}</p>
+                                 <p className="text-xs text-slate-500 font-medium">Centipawn Loss: {Math.round(currentMoveAnalysis.cpl)}</p>
+                              </div>
+                           </div>
+                        ) : (
+                           <div className="flex items-center gap-3 italic text-slate-500 text-sm py-2">
+                              {currentPly <= 10 && currentPly > 0 ? (
+                                <div className="flex items-center gap-2 text-indigo-400 not-italic font-black">
+                                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
+                                    <BookOpen className="w-6 h-6" />
+                                  </div>
+                                  <span>Book Move</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-10 h-10 bg-slate-500/10 rounded-xl flex items-center justify-center border border-slate-500/20">
+                                    <Clock className="w-6 h-6 animate-pulse" />
+                                  </div>
+                                  <span>{currentPly === 0 ? "Opening Position" : "Opponent Move Analyzed"}</span>
+                                </div>
+                              )}
+                           </div>
+                        )}
+                      </div>
+
+                      {/* Navigation Controls */}
+                      <div className="grid grid-cols-2 gap-3 mb-8">
+                        <button 
+                           onClick={() => setCurrentPly(Math.max(0, currentPly-1))}
+                           className="py-5 bg-[#262421] hover:bg-slate-700 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95 group shadow-lg"
+                        >
+                           <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform"/>
+                        </button>
+                        <button 
+                           onClick={() => setCurrentPly(Math.min(moves.length, currentPly+1))}
+                           className="py-5 bg-[#262421] hover:bg-slate-700 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95 group shadow-lg"
+                        >
+                           <ChevronRight className="w-8 h-8 group-hover:translate-x-1 transition-transform"/>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5 mb-8">
                          {Object.entries(analysis?.counts || {}).filter(([_, count]: any) => count > 0).map(([cls, count]: any) => (
-                             <div key={cls} className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
-                                <span className={`font-bold ${
+                             <div key={cls} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                                <span className={`font-black text-[10px] uppercase tracking-widest ${
                                     cls === "Brilliant" ? "text-cyan-400" :
                                     cls === "Best" || cls === "Excellent" ? "text-emerald-400" :
                                     cls === "Blunder" ? "text-red-500" :
                                     "text-amber-400"
                                 }`}>{cls}</span>
-                                <span className="text-white font-black">{count}</span>
+                                <span className="text-white font-black text-sm">{count}</span>
                              </div>
                          ))}
                       </div>
 
-                      <div className="mt-8">
-                         <button onClick={onHome} className="w-full py-4 bg-[#262621] hover:bg-[#30302a] border border-white/10 rounded-xl font-bold transition-all">
-                            Back to Home
+                      <div className="mt-auto">
+                         <button onClick={onHome} className="w-full py-4 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-2xl font-black transition-all shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+                            FINISH ANALYSIS
                          </button>
                       </div>
                   </div>
@@ -1275,6 +1321,7 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
     </main>
   );
 }
+
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 

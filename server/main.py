@@ -8,7 +8,7 @@ import chess
 import chess.engine
 import asyncio
 
-app = FastAPI(title="Deepcastle v7 Engine API")
+app = FastAPI(title="Deepcastle Engine API")
 
 # Allow ALL for easy testing (we can restrict this later if needed)
 app.add_middleware(
@@ -58,13 +58,13 @@ class AnalyzeResponse(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "online", "engine": "Deepcastle v7 Hybrid Neural", "platform": "Hugging Face Spaces"}
+    return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
 
 @app.get("/health")
 def health():
     if not os.path.exists(ENGINE_PATH):
         return {"status": "error", "message": "Engine binary not found"}
-    return {"status": "ok", "engine": "Deepcastle v7"}
+    return {"status": "ok", "engine": "Deepcastle"}
 
 async def get_engine():
     if not os.path.exists(ENGINE_PATH):
