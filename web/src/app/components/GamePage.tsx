@@ -520,20 +520,28 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
           {/* Stats + History + Controls */}
           <section className="bg-[#262421] rounded-lg border border-[#3d3a36] p-4 flex flex-col gap-4 flex-1 shadow-xl">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#161512] p-3 rounded-lg border border-white/5">
-                <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Depth</p>
-                <p className="text-xl font-bold tracking-tighter text-slate-200">
-                  {stats.depth}<span className="text-[10px] ml-1 opacity-40">PLY</span>
-                </p>
+            {settings.mode !== "p2p" && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
+                  <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Depth</p>
+                  <p className="text-xl font-bold tracking-tighter text-slate-200">
+                    {stats.depth}<span className="text-[10px] ml-1 opacity-40">PLY</span>
+                  </p>
+                </div>
+                <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
+                  <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Speed</p>
+                  <p className="text-xl font-bold tracking-tighter text-indigo-400">
+                    <span>{(stats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
+                  </p>
+                </div>
+                <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
+                  <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Nodes</p>
+                  <p className="text-xl font-bold tracking-tighter text-emerald-400">
+                    <span>{(stats.nodes / 1000).toFixed(1)}k</span>
+                  </p>
+                </div>
               </div>
-              <div className="bg-[#161512] p-3 rounded-lg border border-white/5">
-                <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Search Speed</p>
-                <p className="text-xl font-bold tracking-tighter text-indigo-400">
-                  <span>{(stats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Move History */}
             <div className="flex-1 bg-[#161512] rounded-lg border border-white/5 flex flex-col overflow-hidden max-h-[260px]">
@@ -599,16 +607,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           </section>
 
           {/* Bottom bar */}
-          <div className="bg-[#262421] p-4 rounded-lg border border-[#3d3a36] flex items-center justify-between shadow-xl">
-            <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
-              <div className="flex items-center gap-2 border-r border-white/10 pr-4">
-                <Clock className="w-3 h-3" /> {settings.thinkTime}s
+          {settings.mode !== "p2p" && (
+            <div className="bg-[#262421] p-4 rounded-lg border border-[#3d3a36] flex items-center justify-between shadow-xl">
+              <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-tighter">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3 h-3" /> {settings.thinkTime < 1 ? Math.round(settings.thinkTime * 1000) + "ms" : settings.thinkTime + "s"} Think Time
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-indigo-400" /> {stats.nodes.toLocaleString()} Nodes
-              </div>
-            </div>
-            {settings.mode !== "p2p" && (
               <button
                 id="new-game-btn"
                 onClick={resetGame}
@@ -616,8 +621,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               >
                 <RefreshCw className="w-3 h-3" /> New Game
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
