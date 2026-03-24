@@ -166,6 +166,7 @@ export default function DeepcastlePremium() {
             {/* Chessboard Container */}
             <div className="flex-1 bg-slate-900/20 backdrop-blur-sm p-4 rounded-3xl border border-slate-800/30 shadow-2xl relative overflow-hidden group">
                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+               {/* @ts-ignore */}
                <Chessboard 
                  position={game.fen()} 
                  onPieceDrop={onDrop}
