@@ -1,67 +1,33 @@
 # 🌐 DeepCastle Web Deployment Guide
 
-This guide explains how to deploy your chess bot website for **FREE** using Vercel (Frontend) and Koyeb or Hugging Face (Backend).
+This guide explains how to deploy your chess bot website for **FREE** with **ZERO payment details (No Card)**.
 
 ---
 
-## 🏗️ 1. The Strategy
-Chess engines are CPU-intensive C++ programs. To keep it 100% free and unlimited, we separate the UI from the Engine.
+## 🏆 1. The Recommended Choice: Streamlit (No Card, 100% Free)
+This is the **easiest and best** way to share your bot. It works on Streamlit's Community Cloud and is completely free forever.
 
+1.  **Frontend + Backend:** DeepCastle v7 runs as a single-file application on Streamlit.
+2.  **Autonomous Setup:** Our special `streamlit_app.py` script automatically **compiles** your C++ engine from source on Streamlit's Linux servers.
+
+**Steps:**
+- Follow the **[STREAMLIT_DEPLOY.md](STREAMLIT_DEPLOY.md)** file for 3-minute setup instructions.
+- Login at [share.streamlit.io](https://share.streamlit.io/) with your GitHub.
+- Select `server/streamlit_app.py`.
+
+---
+
+## 🏗️ 2. The Advanced Choice: Vercel + Koyeb (If you want a card-linked VPS)
+If you have a card and want a high-end Next.js UI, you can follow the Docker deployment:
 1.  **Frontend (Next.js):** Deployed on **Vercel**.
-2.  **Backend (FastAPI + Docker):** Deployed on **Koyeb** or **Hugging Face Spaces**. These platforms allow us to run a "Docker Container," which is a mini-Linux system that automatically compiles and runs your engine!
+2.  **Backend (FastAPI + Docker):** Deployed on **Koyeb** or **Hugging Face**.
+- Use the `server/Dockerfile` provided in your repo.
 
 ---
 
-## 🚀 2. Option A: Deploying on Koyeb (Fast & Easy)
+## 🛠️ 3. Why This Is A Professional Setup?
+-   **Multi-Platform Support:** You can build on **Windows** and the deployment scripts will "Auto-Compile" for **Linux** in the cloud.
+-   **High-End Performance:** Includes the **HalfKAv2 (v7)** NNUE model for master-level play.
+-   **Zero Maintenance:** The neural network weights are automatically downloaded when the cloud server boots up.
 
-1.  Create a free account on [Koyeb.com](https://www.koyeb.com/).
-2.  Click **Create Service**.
-3.  Choose **GitHub** and select your repository: `Amogh1221/DeepCastle-Official`.
-4.  **Configuration:**
-    -   **Deployment Strategy:** Docker (Look for the `server/Dockerfile`).
-    -   **Region:** Choose the one closest to you.
-    -   **Instance Size:** "Nano" (This is the **FREE** forever instance).
-    -   **Port:** `8000`.
-5.  Click **Deploy**.
-6.  Once live, Koyeb will give you a URL like `https://deepcastle-api-amogh.koyeb.app`.
-
----
-
-## 🤗 3. Option B: Deploying on Hugging Face Spaces (24/7 Awake)
-
-1.  Create a free account on [HuggingFace.co](https://huggingface.co/).
-2.  Click **New** -> **Space**.
-3.  Name it (e.g., `deepcastle-engine`) and choose **Docker** as the SDK.
-4.  **Hardware:** Choose "CPU Basic" (This is **Free** and stays 24/7 awake if you select Public).
-5.  Upload your repository files or connect your GitHub.
-6.  It will automatically detect the `Dockerfile` and start building your engine!
-
----
-
-## 🎨 4. Deploying the Frontend (Vercel)
-
-1.  Create a free account on [Vercel.com](https://vercel.com/).
-2.  Click **Add New...** -> **Project**.
-3.  Connect your GitHub repository.
-4.  **Configuration:**
-    -   **Framework Preset:** `Next.js`
-    -   **Root Directory:** `web`
-5.  Add **Environment Variable**:
-    -   Name: `NEXT_PUBLIC_ENGINE_API_URL`
-    -   Value: **[Your URL from Koyeb or Hugging Face]**
-6.  Click **Deploy**.
-
----
-
-## 🛠️ 5. Local Testing
-To test the website locally:
-1.  **Start Server:** `cd server && python main.py`
-2.  **Start Website:** `cd web && npm run dev`
-3.  Open `http://localhost:3000`.
-
----
-
-## 🧩 6. Why Docker?
-I provided a `Dockerfile` in the `/server` folder. This is a special file that tells the cloud exactly how to build your C++ engine on Linux. This means you don't have to manually compile anything for the web—the cloud does it for you every time you push code!
-
-Enjoy your online chessbot empire!
+Enjoy your new online chess grandmaster!
