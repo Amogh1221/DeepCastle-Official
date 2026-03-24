@@ -973,7 +973,18 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
             </AnimatePresence>
 
             <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl border-2 border-[#3d3a36]">
-              <Chessboard options={boardOptions} />
+              <Chessboard
+                position={fen}
+                onPieceDrop={handlePieceDrop}
+                onSquareClick={handleSquareClick}
+                boardOrientation={playerColor}
+                customArrows={arrows}
+                animationDuration={200}
+                customDarkSquareStyle={{ backgroundColor: "#779556" }}
+                customLightSquareStyle={{ backgroundColor: "#ebecd0" }}
+                customBoardStyle={{ borderRadius: "4px" }}
+                arePiecesDraggable={!thinking && isPlayerTurn && !gameEnded}
+              />
             </div>
           </div>
 
@@ -1195,15 +1206,13 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
               <div className="lg:col-span-6 flex flex-col gap-4">
                  <div className="w-full aspect-square bg-[#1a1a1f] p-4 rounded-xl border border-white/5 shadow-2xl">
                     <Chessboard 
-                       options={{
-                          position: currentFen, 
-                          boardOrientation: settings.playerColor,
-                          animationDurationInMs: 200,
-                          allowDragging: false,
-                          darkSquareStyle: { backgroundColor: "#779556" },
-                          lightSquareStyle: { backgroundColor: "#ebecd0" },
-                          boardStyle: { borderRadius: "4px" }
-                       }}
+                       position={currentFen}
+                       boardOrientation={settings.playerColor}
+                       animationDuration={200}
+                       arePiecesDraggable={false}
+                       customDarkSquareStyle={{ backgroundColor: "#779556" }}
+                       customLightSquareStyle={{ backgroundColor: "#ebecd0" }}
+                       customBoardStyle={{ borderRadius: "4px" }}
                     />
                  </div>
               </div>
