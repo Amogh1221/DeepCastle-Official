@@ -1,20 +1,72 @@
 # DeepCastle v7: Official Repository
 
-DeepCastle is a state-of-the-art chess application combining a high-performance C++ engine with a modern Python/Pygame user interface and **NNUE (Efficiently Updatable Neural Network)** evaluation.
+DeepCastle v7 is a professional-grade chess engine and application. It achieves high-performance play by combining the powerful **Official Stockfish C++ Search Engine** with a custom-trained **NNUE (Efficiently Updatable Neural Network)** evaluation brain.
+
+---
+
+## ❤️ Credits and References
+
+DeepCastle is built upon the incredible work of the global computer chess community. We would like to give primary credit to:
+
+-   **The Stockfish Developers**: For the legendary [Stockfish C++ Search Engine](https://github.com/official-stockfish/Stockfish), which provides the world-class bitboard architecture, search algorithms, and incremental update logic used in DeepCastle v7.
+-   **The Lichess Team**: For providing the massive open-source [database of evaluations](https://database.lichess.org/) used to train the DeepCastle neural network.
+-   **NNUE-Pytorch**: For the training framework used to develop the custom neural network weights.
+
+---
+
+## 🧠 Theory of Operation
+
+DeepCastle v7 is a hybrid system where two major components work together:
+
+### 1. The Search Engine (C++ / Stockfish-based)
+The "muscle" of the engine is the official Stockfish backend. It handles the raw calculation, looking millions of moves ahead into the future.
+-   **Bitboard Architecture**: Uses 64-bit integers to represent the board, allowing for extremely fast move generation.
+-   **PVS (Principal Variation Search)**: A highly optimized version of alpha-beta pruning that significantly reduces the number of positions the computer needs to look at.
+*   **Transposition Table**: A massive in-memory hash table that remembers previous calculations, preventing the engine from repeating work.
+*   **Iterative Deepening**: A strategy that searches level by level (plies), ensuring the bot always has its "best move so far" ready if time runs out.
+
+### 2. The NNUE Evaluation (Neural Network)
+The "brain" of the engine is the **NNUE**. Unlike traditional "hand-written" rules, this model learned to evaluate chess positions by studying over **350 million grandmaster-level positions** evaluated by Stockfish.
+
+*   **Features (HalfKAv2_hm)**: The neural network looks at the board from the perspective of the **King**. It captures how every piece on the board relates to the position of its own King.
+*   **Efficient Updates**: Because only one or two pieces move at a time, the network uses an "Accumulator" to incrementally update its evaluation in microseconds rather than re-calculating the entire board from scratch.
+*   **Architecture**: DeepCastle v7 uses a multi-layered network with **SqrCReLU** activations and **Product Pooling**, allowing it to detect complex "interactions" (like a strong bishop paired with a weak pawn structure).
+
+---
+
+## 📈 Training Pipeline
+
+The `training` folder contains the full codebase used to develop the DeepCastle neural weights.
+
+### 1. The Dataset
+We use a **32GB `.binpack`** datasource containing ~354 million positions. The network learns to predict the **Win-Draw-Loss (WDL)** probability of these positions using a **Power MSE Loss** function.
+
+### 2. Training Loop
+Training is performed on an **RTX 3060 GPU** and typically takes 2-4 days. We use the **Ranger21 Optimizer**, which combines lookahead and gradient centralization for maximum stability.
+```bash
+python training/train.py <path_to_data>.binpack --features "HalfKAv2_hm^" --l1 1024 --batch-size 16384 --max-epochs 400
+```
+
+### 3. Model Export
+After training, the PyTorch model is quantized into high-performance integers (`int8`/`int16`) and exported as a binary `.nnue` file.
 
 ---
 
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-Ensure you have Python 3.10+ and a C++ compiler (MSVC/GCC).
-Install the required Python dependencies:
+- **Python 3.10+**: For the GUI and training scripts.
+- **MSVC (Visual Studio)** or **GCC**: For compiling the C++ engine.
+
+### 2. Compiling the Engine
+DeepCastle creates its own `deepcastle.exe` from source. Navigate to the `engine` folder and run the build script:
 ```bash
-pip install -r requirements.txt
+cd engine
+build.bat
 ```
 
-### 2. How to Play
-Navigate to the `game` folder and run the interface:
+### 3. Playing
+Run the `game.py` file inside the `game` folder to start the graphical interface:
 ```bash
 cd game
 python game.py
@@ -22,47 +74,12 @@ python game.py
 
 ---
 
-## 🧠 Theory of Operation
-
-### 1. The Search Engine (C++)
-The core engine is built on a **Bitboard** architecture, allowing for extremely fast move generation (millions of nodes per second). Key search algorithms include:
-*   **Iterative Deepening**: Progressively searches deeper plies while managing a precise time budget.
-*   **PVS (Principal Variation Search)**: An optimized alpha-beta pruning variant that assumes the first move searched is likely the best.
-*   **Transposition Table**: Uses Zobrist hashing to remember previously searched positions, significantly reducing redundant calculations.
-*   **Move Ordering**: Employs MVV-LVA (Most Valuable Victim - Least Valuable Aggressor), Killer Moves, and History Heuristics to search the most promising branches first.
-
-### 2. NNUE Evaluation
-DeepCastle uses an **NNUE** architecture for its position evaluation. Unlike traditional hand-crafted evaluation functions, NNUE learns from millions of grandmaster games.
-*   **Architecture**: A shallow, quantized neural network optimized for CPU execution.
-*   **Accumulator**: Incremental updates track piece-square features during moves, ensuring the neural network doesn't need to re-calculate from scratch every time.
-*   **Features**: Uses the `HalfKAv2` feature set, which encodes the relationship between the pieces and the king's position.
-
----
-
-## 📈 Training Pipeline
-
-The `training` folder contains the full pipeline used to develop the DeepCastle brain.
-
-### 1. Training Command
-To train the model using a `.binpack` datasource:
-```bash
-python training/train.py <path_to_data>.binpack --features "HalfKAv2_hm^" --l1 256 --l2 32 --l3 32 --batch-size 16384 --max-epochs 400 --gpus 1
-```
-
-### 2. Exporting the Model
-Once training is complete, convert the PyTorch checkpoint to a high-performance `.nnue` file for the C++ engine:
-```bash
-python training/export_nnue.py checkpoints/last.ckpt output.nnue
-```
-
----
-
 ## 📂 Repository Structure
 
-*   `game/`: Contains the playable application (`game.py`), the engine interface (`deepcastle.py`), and the compiled engine (`deepcastle.exe`).
-*   `engine/`: Contains the C++ source code for the `deepcastle.exe` chess engine (based on Official Stockfish). You can generate the `deepcastle.exe` binary by running `engine/build.bat`.
-*   `training/`: Full codebase for NNUE training, including model definitions and data loading scripts.
-*   `requirements.txt`: Python package dependencies.
+*   `engine/`: **The Core Search Engine.** Contains the Stockfish-based C++ source code and the `build.bat` script.
+*   `game/`: **The Graphical Interface.** Contains the Python/Pygame code for the playable board and the UCI interface.
+*   `test/`: **Benchmarking Tools.** Contains `elo_bench.py` for testing the engine's rating against Stockfish.
+*   `training/`: **Brain Development.** The full Python pipeline for training and exporting custom NNUE models.
 
 ---
 *Created by Amogh Gupta*
