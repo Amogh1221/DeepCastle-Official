@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
@@ -7,8 +7,53 @@ import math
 import chess
 import chess.engine
 import asyncio
+import json
 
 app = FastAPI(title="Deepcastle Engine API")
+
+# ─── Multiplaying / Challenge Manager ──────────────────────────────────────────
+class ConnectionManager:
+    def __init__(self):
+        # match_id -> list of websockets
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, match_id: str):
+        await websocket.accept()
+        if match_id not in self.active_connections:
+            self.active_connections[match_id] = []
+        self.active_connections[match_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, match_id: str):
+        if match_id in self.active_connections:
+            if websocket in self.active_connections[match_id]:
+                self.active_connections[match_id].remove(websocket)
+            if not self.active_connections[match_id]:
+                del self.active_connections[match_id]
+
+    async def broadcast(self, message: str, match_id: str, exclude: WebSocket = None):
+        if match_id in self.active_connections:
+            for connection in self.active_connections[match_id]:
+                if connection != exclude:
+                    try:
+                        await connection.send_text(message)
+                    except Exception:
+                        pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/{match_id}")
+async def websocket_endpoint(websocket: WebSocket, match_id: str):
+    await manager.connect(websocket, match_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Relay the message (move, chat, etc) to others in the same room
+            await manager.broadcast(data, match_id, exclude=websocket)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, match_id)
+    except Exception:
+        manager.disconnect(websocket, match_id)
+
 
 # Allow ALL for easy testing (we can restrict this later if needed)
 app.add_middleware(

@@ -29,17 +29,30 @@ import {
   Target,
   BarChart2,
   BookOpen,
+  Users,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type AppPage = "home" | "setup" | "game" | "review";
+type AppPage = "home" | "setup" | "game" | "review" | "lobby";
 type PlayerColor = "white" | "black";
+type GameMode = "ai" | "p2p";
+
+interface MatchSettings {
+  timeLimit: number; // minutes
+  increment: number; // seconds
+}
 
 interface GameSettings {
   playerColor: PlayerColor;
-  thinkTime: number; // seconds
+  thinkTime: number; // seconds for AI
+  mode: GameMode;
+  matchSettings: MatchSettings;
+  matchId?: string;
 }
 
 interface Stats {
@@ -238,12 +251,42 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
   );
 }
 
+const TIME_CONTROLS = [
+  { label: "1 min", time: 1, inc: 0 },
+  { label: "1+1", time: 1, inc: 1 },
+  { label: "1+2", time: 1, inc: 2 },
+  { label: "3 min", time: 3, inc: 0 },
+  { label: "3+2", time: 3, inc: 2 },
+  { label: "3+5", time: 3, inc: 5 },
+  { label: "10 min", time: 10, inc: 0 },
+  { label: "30 min", time: 30, inc: 0 },
+  { label: "90+15", time: 90, inc: 15 },
+];
+
 // ─── Setup Page ───────────────────────────────────────────────────────────────
 function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => void; onBack: () => void }) {
   const [playerColor, setPlayerColor] = useState<PlayerColor>("white");
   const [thinkTime, setThinkTime] = useState(1.0);
+  const [mode, setMode] = useState<GameMode>("ai");
+  const [selectedTC, setSelectedTC] = useState(3); // default 3 min
+  const [customTime, setCustomTime] = useState<string>("10");
+  const [customInc, setCustomInc] = useState<string>("5");
+  const [isCustom, setIsCustom] = useState(false);
 
-  const timeOptions = [0.1, 0.5, 1.0, 2.0, 5.0];
+  const engineTimeOptions = [0.1, 0.5, 1.0, 2.0, 5.0];
+
+  const handleStart = () => {
+    const tc = isCustom 
+      ? { timeLimit: parseInt(customTime) || 10, increment: parseInt(customInc) || 0 }
+      : { timeLimit: TIME_CONTROLS[selectedTC].time, increment: TIME_CONTROLS[selectedTC].inc };
+    
+    onStart({
+      playerColor,
+      thinkTime,
+      mode,
+      matchSettings: tc
+    });
+  };
 
   return (
     <main className="min-h-screen bg-[#0d0d0f] text-slate-100 flex items-center justify-center p-6">
@@ -255,7 +298,7 @@ function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => void; on
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 w-full max-w-md"
+        className="relative z-10 w-full max-w-lg"
       >
         <button
           onClick={onBack}
@@ -265,90 +308,139 @@ function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => void; on
         </button>
 
         <div className="bg-[#161619] border border-white/5 rounded-3xl p-8 shadow-2xl">
-          <div className="flex items-center gap-3 mb-8">
+          <h2 className="font-black text-2xl mb-8 flex items-center gap-2">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl flex items-center justify-center">
-              <Cpu className="w-5 h-5 text-white" />
+              <RefreshCw className="w-5 h-5 text-white" />
             </div>
+            Game Setup
+          </h2>
+
+          {/* Mode Selection */}
+          <div className="mb-8 p-1 bg-black/40 rounded-2xl flex border border-white/5">
+            <button 
+              onClick={() => setMode("ai")}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "ai" ? "bg-[#262621] text-emerald-400 shadow-xl border border-white/5" : "text-slate-500"}`}
+            >
+              <Cpu className="w-4 h-4"/> Against AI
+            </button>
+            <button 
+              onClick={() => setMode("p2p")}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "p2p" ? "bg-[#262621] text-indigo-400 shadow-xl border border-white/5" : "text-slate-500"}`}
+            >
+              <Users className="w-4 h-4"/> Challenge Human
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <h2 className="font-black text-xl">Game Setup</h2>
-              <p className="text-xs text-slate-500">Configure your challenge</p>
-            </div>
-          </div>
+              {/* Color Selection */}
+              <div className="mb-8">
+                <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block">Play As</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setPlayerColor("white")}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                      playerColor === "white" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white shadow-lg border border-white/20" />
+                    <span className="text-xs font-bold">White</span>
+                  </button>
+                  <button
+                    onClick={() => setPlayerColor("black")}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                      playerColor === "black" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#1a1a1a] border border-slate-700" />
+                    <span className="text-xs font-bold">Black</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* Color Selection */}
-          <div className="mb-8">
-            <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block">Play As</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                id="play-as-white"
-                onClick={() => setPlayerColor("white")}
-                className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${
-                  playerColor === "white"
-                    ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-white/5 bg-[#0d0d0f] hover:border-white/20"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.3)] border border-white/20" />
-                <span className="text-sm font-bold">White</span>
-                <span className="text-[10px] text-slate-500">You move first</span>
-              </button>
-              <button
-                id="play-as-black"
-                onClick={() => setPlayerColor("black")}
-                className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${
-                  playerColor === "black"
-                    ? "border-indigo-500 bg-indigo-500/10"
-                    : "border-white/5 bg-[#0d0d0f] hover:border-white/20"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border-2 border-slate-700 shadow-[0_0_20px_rgba(0,0,0,0.5)]" />
-                <span className="text-sm font-bold">Black</span>
-                <span className="text-[10px] text-slate-500">Bot moves first</span>
-              </button>
+              {/* Engine Logic only if AI */}
+              {mode === "ai" && (
+                <div className="mb-2">
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center gap-2">
+                    <Clock className="w-3 h-3" /> Engine Think Time
+                  </label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {engineTimeOptions.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setThinkTime(t)}
+                        className={`py-2 rounded-lg text-[10px] font-black border transition-all ${
+                          thinkTime === t ? "border-indigo-500 bg-indigo-500/10 text-indigo-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
+                        }`}
+                      >
+                        {t < 1 ? t*1000 : t+"s"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Think Time */}
-          <div className="mb-8">
-            <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center gap-2">
-              <Clock className="w-3 h-3" /> Engine Think Time
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {timeOptions.map((t) => (
+            <div>
+              <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center gap-2">
+                <Clock className="w-3 h-3" /> Time Control
+              </label>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {TIME_CONTROLS.map((tc, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setSelectedTC(idx); setIsCustom(false); }}
+                    className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${
+                      !isCustom && selectedTC === idx ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
+                    }`}
+                  >
+                    {tc.label}
+                  </button>
+                ))}
                 <button
-                  key={t}
-                  id={`think-time-${t}`}
-                  onClick={() => setThinkTime(t)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-bold border-2 transition-all ${
-                    thinkTime === t
-                      ? "border-indigo-500 bg-indigo-500/10 text-indigo-300"
-                      : "border-white/5 bg-[#0d0d0f] text-slate-400 hover:border-white/20"
+                  onClick={() => setIsCustom(true)}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${
+                    isCustom ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
                   }`}
                 >
-                  {t < 1 ? `${t * 1000}ms` : `${t}s`}
+                  Custom
                 </button>
-              ))}
+              </div>
+
+              {isCustom && (
+                <div className="grid grid-cols-2 gap-3 mb-4 animate-in fade-in slide-in-from-top-2">
+                   <div>
+                      <p className="text-[9px] uppercase font-bold text-slate-600 mb-1">Mins</p>
+                      <input type="number" value={customTime} onChange={e=>setCustomTime(e.target.value)} className="w-full bg-[#0d0d0f] border border-white/10 rounded-lg p-2 text-sm text-center font-bold outline-none border-amber-500/40" />
+                   </div>
+                   <div>
+                      <p className="text-[9px] uppercase font-bold text-slate-600 mb-1">Inc (s)</p>
+                      <input type="number" value={customInc} onChange={e=>setCustomInc(e.target.value)} className="w-full bg-[#0d0d0f] border border-white/10 rounded-lg p-2 text-sm text-center font-bold outline-none border-amber-500/40" />
+                   </div>
+                </div>
+              )}
             </div>
-            <p className="text-[10px] text-slate-600 mt-2">
-              {thinkTime < 0.5 ? "Weaker — faster play" : thinkTime >= 2 ? "Stronger — deeper search" : "Balanced"}
-            </p>
           </div>
 
           <motion.button
-            id="start-game-btn"
-            onClick={() => onStart({ playerColor, thinkTime })}
+            onClick={handleStart}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-2xl font-black text-base flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(99,102,241,0.35)] transition-all border border-indigo-500/30"
+            className={`w-full py-4 mt-4 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all border ${
+              mode === "p2p" 
+                ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-[0_0_30px_rgba(99,102,241,0.35)] border-indigo-400/30" 
+                : "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-[0_0_30px_rgba(16,185,129,0.35)] border-emerald-400/30"
+            }`}
           >
-            <Play className="w-5 h-5" />
-            Start Game
+            {mode === "p2p" ? <Users className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            {mode === "p2p" ? "Create Challenge" : "Start Game"}
           </motion.button>
         </div>
       </motion.div>
     </main>
   );
 }
+
 
 // ─── Resign Modal ─────────────────────────────────────────────────────────────
 function ResignModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
@@ -500,11 +592,86 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
   );
   const [showEvalBar, setShowEvalBar] = useState(true);
 
+  // Timer States
+  const [timeLeftWhite, setTimeLeftWhite] = useState(settings.matchSettings.timeLimit * 60);
+  const [timeLeftBlack, setTimeLeftBlack] = useState(settings.matchSettings.timeLimit * 60);
+  const [timerActive, setTimerActive] = useState(false);
+
+  // Multiplayer States
+  const socketRef = useRef<WebSocket | null>(null);
+  const [opponentJoined, setOpponentJoined] = useState(false);
+
   // Modal states
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
   const [gameResult, setGameResult] = useState<{ title: string; subtitle: string; isWin: boolean } | null>(null);
+
+  // ── Establish Multiplayer Session ──
+  useEffect(() => {
+    if (settings.mode === "p2p" && settings.matchId) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const cleanHost = API_URL.replace(/^https?:\/\//, "");
+      const wsUrl = `${protocol}//${cleanHost}/ws/${settings.matchId}`;
+      
+      const socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+         socket.send(JSON.stringify({ type: "join", color: playerColor }));
+      };
+
+      socket.onmessage = (event) => {
+         const data = JSON.parse(event.data);
+         if (data.type === "join") {
+            setOpponentJoined(true);
+            setBotMessage("Opponent is ready! Game ON.");
+            setTimerActive(true);
+         } else if (data.type === "move") {
+            applyExternalMove(data.move);
+         }
+      };
+
+      return () => socket.close();
+    } else {
+      // For AI games, start timer immediately if user is white
+      if (playerColor === "white") setTimerActive(true);
+    }
+  }, []);
+
+  // ── Timer Logic ──
+  useEffect(() => {
+    if (!timerActive || gameEnded) return;
+    
+    const interval = setInterval(() => {
+      const turn = gameRef.current.turn();
+      if (turn === "w") {
+        setTimeLeftWhite(prev => {
+          if (prev <= 0) {
+            endGame(false, "White flagged (out of time)");
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else {
+        setTimeLeftBlack(prev => {
+          if (prev <= 0) {
+            endGame(turn === botChessColor, "Black flagged (out of time)");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerActive, gameEnded]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   // Click-to-move
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
@@ -513,140 +680,96 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
   // Hint arrow
   const [hintArrow, setHintArrow] = useState<[string, string] | null>(null);
   const [loadingHint, setLoadingHint] = useState(false);
-
-  // Custom arrows for react-chessboard
   const arrows: [string, string, string?][] = hintArrow ? [[hintArrow[0], hintArrow[1], "rgba(163, 209, 96, 0.8)"]] : [];
 
-  // ── Eval bar logic ──
-  // score from API is from white's POV (positive = white winning)
-  // winProb for white → fill from bottom for white, top for black
-  // If player is white: high fill = player winning (good), low fill = bot winning (bad)
-  // If player is black: high fill = player winning = needs INVERTED
-
-  // Raw white advantage (-∞ to +∞ pawns)
-  const scoreForWhite = stats.score; // positive = white is winning
-  // Convert to a 5–95% bar height where 50% = equal
+  // Eval bar logic
+  const scoreForWhite = stats.score;
   const rawWinProb = Math.max(5, Math.min(95, 50 + scoreForWhite * 7));
-  // The bar renders from bottom: fill% = white's share
-  // If playerColor=white: "your advantage" = rawWinProb; if black: inverted
   const evalBarFill = playerColor === "white" ? rawWinProb : 100 - rawWinProb;
-  // Eval label: show from player's perspective
   const displayScore = playerColor === "white" ? scoreForWhite : -scoreForWhite;
 
-  // Eval text: mate or centipawns
   const evalLabel = (() => {
     if (stats.mateIn !== null) {
       const m = stats.mateIn;
-      // mateIn > 0: bot (opponent) can mate player; mateIn < 0: player can mate bot
-      // We want to show it from player's perspective:
-      // If m < 0 → player can mate: "M" + abs(m), e.g. M4 means you mate in 4
-      // If m > 0 → bot can mate: "-M" + m (bad for player)
-      if (m < 0) return `M${Math.abs(m)}`; // player mates bot
-      else return `-M${m}`; // bot mates player
+      if (m < 0) return `M${Math.abs(m)}`;
+      else return `-M${m}`;
     }
     return displayScore.toFixed(2);
   })();
 
-  // ── Engine error banner state ──
   const [engineError, setEngineError] = useState<string | null>(null);
+
+  const endGame = (isWin: boolean, subtitle: string) => {
+    setGameEnded(true);
+    setTimerActive(false);
+    setGameResult({ title: isWin ? "Victory!" : "DeepCastle Wins", subtitle, isWin });
+    setShowResultModal(true);
+  };
+
+  const applyExternalMove = (move: any) => {
+    const g = gameRef.current;
+    if (g.isGameOver() || gameEnded) return;
+    const copy = new Chess(g.fen());
+    try {
+      const mv = copy.move(move);
+      if (mv) {
+        gameRef.current = copy;
+        setFen(copy.fen());
+        setMoveHistory(prev => [...prev, { san: mv.san, score: "OPP" }]);
+        setIsPlayerTurn(true);
+        if (g.turn() === "w") setTimeLeftWhite(t => t + settings.matchSettings.increment);
+        else setTimeLeftBlack(t => t + settings.matchSettings.increment);
+        if (copy.isGameOver()) handleGameOver(copy);
+      }
+    } catch (e) {
+      console.error("Invalid external move", e);
+    }
+  };
 
   // ── Engine Fetch ──
   const fetchMove = useCallback(async (currentFen: string, forHint = false) => {
     if (!forHint) {
-      setThinking(true);
-      setIsPlayerTurn(false);
-      setBotMessage("Analyzing potential lines...");
+      setThinking(true); setIsPlayerTurn(false); setBotMessage("Analyzing potential lines...");
     }
-
     try {
       const response = await fetch(`${API_URL}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fen: currentFen, time: settings.thinkTime }),
       });
-
-      if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        throw new Error(`Engine API error ${response.status}${detail ? `: ${detail}` : ""}`);
-      }
+      if (!response.ok) throw new Error(`Engine API error`);
       const data = await response.json();
-      // Clear any previous engine error on success
       setEngineError(null);
-
       if (forHint) {
         if (data.bestmove && data.bestmove.length >= 4) {
-          const from = data.bestmove.slice(0, 2);
-          const to = data.bestmove.slice(2, 4);
-          setHintArrow([from, to]);
+          setHintArrow([data.bestmove.slice(0, 2), data.bestmove.slice(2, 4)]);
           setTimeout(() => setHintArrow(null), 4000);
         }
         return;
       }
-
       if (data.bestmove) {
         const g = new Chess(currentFen);
-        let mv = null;
-        try {
-          mv = g.move(data.bestmove);
-        } catch {
-          try {
-            mv = g.move({
-              from: data.bestmove.slice(0, 2),
-              to: data.bestmove.slice(2, 4),
-              promotion: data.bestmove.length > 4 ? data.bestmove[4] : "q",
-            });
-          } catch {}
-        }
-
+        let mv = g.move(data.bestmove);
+        if (!mv) mv = g.move({ from: data.bestmove.slice(0, 2), to: data.bestmove.slice(2, 4), promotion: "q" });
         if (mv) {
-          gameRef.current = g;
-          setFen(g.fen());
+          gameRef.current = g; setFen(g.fen());
           setMoveHistory(prev => [...prev, { san: mv!.san, score: String(data.score?.toFixed(2) ?? "?") }]);
-
-          let mateIn: number | null = null;
-          if (data.score !== undefined && Math.abs(data.score) >= 100) {
-            if (playerColor === "white") {
-              mateIn = data.score > 0 ? -1 : 1;
-            } else {
-              mateIn = data.score > 0 ? 1 : -1;
-            }
-          }
-
+          if (botChessColor === "w") setTimeLeftWhite(t => t + settings.matchSettings.increment);
+          else setTimeLeftBlack(t => t + settings.matchSettings.increment);
           setStats({
-            score: data.score ?? 0,
-            depth: data.depth ?? 0,
-            nodes: data.nodes ?? 0,
-            nps: data.nps ?? 0,
-            pv: data.pv ?? "",
-            mateIn,
+            score: data.score ?? 0, depth: data.depth ?? 0, nodes: data.nodes ?? 0, nps: data.nps ?? 0,
+            pv: data.pv ?? "", mateIn: playerColor === "white" ? (data.score > 0 ? -1 : 1) : (data.score > 0 ? 1 : -1)
           });
-
-          if ((data.score ?? 0) > 2) setBotMessage("My position is dominating.");
-          else if ((data.score ?? 0) < -2) setBotMessage("You are playing remarkably well.");
-          else setBotMessage("Interesting. Your move.");
-
+          setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
         }
       }
     } catch (err: any) {
-      console.error(err);
-      const msg = err?.message || "Unknown error";
-      const isNetworkErr = msg.includes("fetch") || msg.includes("Failed to fetch") || msg.includes("NetworkError");
-      if (!forHint) {
-        setEngineError(
-          isNetworkErr
-            ? `Cannot reach the engine at ${API_URL}. Make sure the server is running (python server/main.py) and try again.`
-            : `Engine error: ${msg}`
-        );
-        setBotMessage("Engine is offline. Check the server.");
-      }
+      if (!forHint) setEngineError("Engine Offline");
     } finally {
-      if (!forHint) {
-        setThinking(false);
-        setIsPlayerTurn(true);
-      }
+      if (!forHint) { setThinking(false); setIsPlayerTurn(true); }
     }
-  }, [settings.thinkTime, playerColor]);
+  }, [settings.thinkTime, playerColor, settings.matchSettings.increment]);
 
   // ── Bot moves first if player is black ──
   const initialBotMoveDone = useRef(false);
@@ -673,34 +796,22 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
     setShowResultModal(true);
   }
 
-  // ── Apply Player Move ──
   function applyPlayerMove(from: string, to: string): boolean {
     const g = gameRef.current;
     if (g.turn() !== playerChessColor || g.isGameOver() || !isPlayerTurn || gameEnded) return false;
-
     const copy = new Chess(g.fen());
     let mv = null;
-    try {
-      mv = copy.move({ from, to, promotion: "q" });
-    } catch {
-      return false;
-    }
-
+    try { mv = copy.move({ from, to, promotion: "q" }); } catch { return false; }
     if (mv) {
-      gameRef.current = copy;
-      setFen(copy.fen());
+      gameRef.current = copy; setFen(copy.fen());
       setMoveHistory(prev => [...prev, { san: mv!.san, score: "USR" }]);
-      setBotMessage("Formidable move. Calculating...");
-      setMoveFrom(null);
-      setSquareStyles({});
-      setHintArrow(null);
-
-      if (copy.isGameOver()) {
-        handleGameOver(copy);
-        return true;
-      }
-
-      setTimeout(() => fetchMove(copy.fen()), 150);
+      if (playerChessColor === "w") setTimeLeftWhite(t => t + settings.matchSettings.increment);
+      else setTimeLeftBlack(t => t + settings.matchSettings.increment);
+      setBotMessage("Thinking..."); setMoveFrom(null); setSquareStyles({}); setHintArrow(null);
+      if (settings.mode === "p2p" && socketRef.current) socketRef.current.send(JSON.stringify({ type: "move", move: { from, to, promotion: "q" } }));
+      if (copy.isGameOver()) { handleGameOver(copy); return true; }
+      if (settings.mode === "ai") setTimeout(() => fetchMove(copy.fen()), 150);
+      else setIsPlayerTurn(false);
       return true;
     }
     return false;
@@ -821,17 +932,17 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
   }
 
   const boardOptions = {
-    position: fen,
-    squareStyles: squareStyles,
+    position: fen, 
+    squareStyles, 
     darkSquareStyle: { backgroundColor: "#779556" },
     lightSquareStyle: { backgroundColor: "#ebecd0" },
     boardStyle: { borderRadius: "4px" },
     animationDurationInMs: 200,
-    allowDragging: !thinking && isPlayerTurn && !gameEnded,
+    allowDragging: isPlayerTurn && !gameEnded,
     onPieceDrop: handlePieceDrop,
     onSquareClick: handleSquareClick,
     boardOrientation: playerColor,
-    customArrows: arrows,
+    arrows: arrows as any,
   };
 
   return (
@@ -907,35 +1018,43 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
           <div className="flex items-center justify-between p-3 bg-[#262421] rounded-lg border-b-2 border-slate-900 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center border-2 border-indigo-400">
-                  <Cpu className="w-8 h-8 text-white opacity-80" />
+                <div className={`w-12 h-12 ${settings.mode === "ai" ? "bg-indigo-600" : "bg-emerald-600"} rounded-lg flex items-center justify-center border-2 ${settings.mode === "ai" ? "border-indigo-400" : "border-emerald-400"}`}>
+                  {settings.mode === "ai" ? <Cpu className="w-8 h-8 text-white opacity-80" /> : <Users className="w-8 h-8 text-white opacity-80" />}
                 </div>
-                {thinking && (
+                { (thinking || (!isPlayerTurn && settings.mode === "p2p")) && (
                   <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#262421]" />
                   </span>
                 )}
               </div>
-              <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
-                DeepCastle{" "}
-                <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
-                  3600+ Elo
-                </span>
-              </h3>
+              <div>
+                 <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
+                   {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
+                   <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
+                     {settings.mode === "ai" ? "3600+ Elo" : "Joined"}
+                   </span>
+                 </h3>
+                 {settings.mode === "p2p" && !opponentJoined && <p className="text-[10px] text-amber-500 animate-pulse">Waiting for opponent...</p>}
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                id="toggle-eval-bar"
-                onClick={() => setShowEvalBar(v => !v)}
-                className="text-slate-500 hover:text-slate-300 transition-colors"
-                title={showEvalBar ? "Hide eval bar" : "Show eval bar"}
-              >
-                {showEvalBar ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-              <button onClick={onHome} className="text-slate-500 hover:text-slate-300 transition-colors" title="Back to home">
-                <X className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-4">
+               <div className={`px-4 py-2 rounded-lg font-mono text-xl font-black ${ (gameRef.current.turn() !== playerChessColor) ? "bg-white text-black ring-2 ring-indigo-500" : "bg-[#161512] text-slate-400" } transition-all`}>
+                  {formatTime(playerColor === "white" ? timeLeftBlack : timeLeftWhite)}
+               </div>
+               <div className="flex items-center gap-3 border-l border-white/10 pl-4">
+                  <button
+                    id="toggle-eval-bar"
+                    onClick={() => setShowEvalBar(v => !v)}
+                    className="text-slate-500 hover:text-slate-300 transition-colors"
+                    title={showEvalBar ? "Hide eval bar" : "Show eval bar"}
+                  >
+                    {showEvalBar ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  <button onClick={onHome} className="text-slate-500 hover:text-slate-300 transition-colors" title="Back to home">
+                    <X className="w-4 h-4" />
+                  </button>
+               </div>
             </div>
           </div>
 
@@ -973,18 +1092,7 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
             </AnimatePresence>
 
             <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl border-2 border-[#3d3a36]">
-              <Chessboard
-                position={fen}
-                onPieceDrop={handlePieceDrop}
-                onSquareClick={handleSquareClick}
-                boardOrientation={playerColor}
-                customArrows={arrows}
-                animationDuration={200}
-                customDarkSquareStyle={{ backgroundColor: "#779556" }}
-                customLightSquareStyle={{ backgroundColor: "#ebecd0" }}
-                customBoardStyle={{ borderRadius: "4px" }}
-                arePiecesDraggable={!thinking && isPlayerTurn && !gameEnded}
-              />
+               <Chessboard options={boardOptions} />
             </div>
           </div>
 
@@ -995,11 +1103,16 @@ function GamePage({ settings, onHome, onRematch, onReview }: {
                 <div className={`w-6 h-6 rounded-sm ${playerColor === "white" ? "bg-slate-200" : "bg-[#1a1a1a] border border-slate-600"}`} />
               </div>
               <span className="font-bold text-sm tracking-tight">
-                Human Challenger{" "}
+                You{" "}
                 <span className="text-xs text-slate-500">({playerColor})</span>
               </span>
             </div>
-            {thinking && <span className="text-xs text-emerald-400 animate-pulse font-semibold">Engine thinking…</span>}
+            <div className="flex items-center gap-4">
+               {thinking && <span className="text-xs text-emerald-400 animate-pulse font-semibold">Engine thinking…</span>}
+               <div className={`px-4 py-2 rounded-lg font-mono text-xl font-black ${ (gameRef.current.turn() === playerChessColor) ? "bg-white text-black ring-2 ring-emerald-500" : "bg-[#161512] text-slate-400" } transition-all`}>
+                  {formatTime(playerColor === "white" ? timeLeftWhite : timeLeftBlack)}
+               </div>
+            </div>
           </div>
         </div>
 
@@ -1205,15 +1318,14 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
               {/* BOARD */}
               <div className="lg:col-span-6 flex flex-col gap-4">
                  <div className="w-full aspect-square bg-[#1a1a1f] p-4 rounded-xl border border-white/5 shadow-2xl">
-                    <Chessboard 
-                       position={currentFen}
-                       boardOrientation={settings.playerColor}
-                       animationDuration={200}
-                       arePiecesDraggable={false}
-                       customDarkSquareStyle={{ backgroundColor: "#779556" }}
-                       customLightSquareStyle={{ backgroundColor: "#ebecd0" }}
-                       customBoardStyle={{ borderRadius: "4px" }}
-                    />
+                    <Chessboard options={{
+                       position: currentFen,
+                       boardOrientation: settings.playerColor,
+                       animationDurationInMs: 200,
+                       darkSquareStyle: { backgroundColor: "#779556" },
+                       lightSquareStyle: { backgroundColor: "#ebecd0" },
+                       boardStyle: { borderRadius: "4px" }
+                    }} />
                  </div>
               </div>
               
@@ -1332,43 +1444,148 @@ function ReviewPage({ settings, moves, onHome }: { settings: GameSettings; moves
 }
 
 
+// ─── Lobby Page ──────────────────────────────────────────────────────────────
+function LobbyPage({ matchId, onBack }: { matchId: string; onBack: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => setIsClient(true), []);
+  
+  if (!isClient) return null;
+  const challengeLink = `${window.location.origin}?match=${matchId}`;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(challengeLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <main className="min-h-screen bg-[#0d0d0f] text-slate-100 flex items-center justify-center p-6 text-center">
+       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#161619] border border-white/5 rounded-3xl p-10 max-w-md w-full shadow-2xl">
+          <div className="w-20 h-20 bg-indigo-600/10 rounded-full flex items-center justify-center mx-auto mb-6">
+             <Share2 className="w-10 h-10 text-indigo-400 animate-pulse" />
+          </div>
+          <h2 className="text-3xl font-black mb-2">Challenge Ready!</h2>
+          <p className="text-slate-500 mb-8 text-sm">Send this link to your opponent. The game will start automatically once they join.</p>
+          
+          <div className="bg-black/40 p-4 rounded-xl border border-white/5 flex items-center gap-3 mb-8">
+             <input readOnly value={challengeLink} className="bg-transparent flex-1 text-[10px] text-slate-400 outline-none truncate" />
+             <button onClick={copyLink} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+                {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5 text-slate-400" />}
+             </button>
+          </div>
+
+          <button onClick={onBack} className="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold transition-all border border-white/5 text-slate-400">
+             Cancel Challenge
+          </button>
+       </motion.div>
+    </main>
+  );
+}
+
 // ─── Root App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [page, setPage] = useState<AppPage>("home");
-  const [settings, setSettings] = useState<GameSettings>({ playerColor: "white", thinkTime: 1.0 });
+  const [settings, setSettings] = useState<GameSettings>({ 
+    playerColor: "white", 
+    thinkTime: 2.0, 
+    mode: "ai", 
+    matchSettings: { timeLimit: 10, increment: 5 }
+  });
+  const [reviewMoves, setReviewMoves] = useState<string[]>([]);
+  const [incomingChallenge, setIncomingChallenge] = useState<string|null>(null);
 
-const [reviewMoves, setReviewMoves] = useState<string[]>([]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get("match");
+    if (m) {
+      setIncomingChallenge(m);
+    }
+  }, []);
 
   function handlePlay() { setPage("setup"); }
   function handleBack() { setPage("home"); }
-  function handleStart(s: GameSettings) { setSettings(s); setPage("game"); }
+  
+  function handleStart(s: GameSettings) { 
+    if (s.mode === "p2p" && !s.matchId) {
+      const mid = Math.random().toString(36).substring(2, 9);
+      setSettings({...s, matchId: mid});
+      setPage("lobby");
+    } else {
+      setSettings(s);
+      setPage("game"); 
+    }
+  }
+
+  function acceptChallenge() {
+    if (incomingChallenge) {
+      setSettings({
+        playerColor: "black",
+        thinkTime: 1.0,
+        mode: "p2p",
+        matchSettings: { timeLimit: 10, increment: 5 },
+        matchId: incomingChallenge
+      });
+      setPage("game");
+      setIncomingChallenge(null);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }
+
   function handleHome() { setPage("home"); }
   function handleRematch() { setPage("setup"); }
   function handleReview(moves: string[]) { setReviewMoves(moves); setPage("review"); }
 
   return (
-    <AnimatePresence mode="wait">
-      {page === "home" && (
-        <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <HomePage onPlay={handlePlay} />
-        </motion.div>
-      )}
-      {page === "setup" && (
-        <motion.div key="setup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <SetupPage onStart={handleStart} onBack={handleBack} />
-        </motion.div>
-      )}
-      {page === "game" && (
-        <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <GamePage settings={settings} onHome={handleHome} onRematch={handleRematch} onReview={handleReview} />
-        </motion.div>
-      )}
-      {page === "review" && (
-        <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <ReviewPage settings={settings} moves={reviewMoves} onHome={handleHome} />
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="relative">
+      <AnimatePresence mode="wait">
+        {page === "home" && (
+          <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <HomePage onPlay={handlePlay} />
+          </motion.div>
+        )}
+        {page === "setup" && (
+          <motion.div key="setup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <SetupPage onStart={handleStart} onBack={handleBack} />
+          </motion.div>
+        )}
+        {page === "lobby" && (
+          <motion.div key="lobby" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <LobbyPage matchId={settings.matchId || ""} onBack={handleBack} />
+          </motion.div>
+        )}
+        {page === "game" && (
+          <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <GamePage settings={settings} onHome={handleHome} onRematch={handleRematch} onReview={handleReview} />
+          </motion.div>
+        )}
+        {page === "review" && (
+          <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ReviewPage settings={settings} moves={reviewMoves} onHome={handleHome} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {incomingChallenge && (
+           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} 
+                className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1f] border-2 border-indigo-500/50 p-6 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex items-center gap-6">
+              <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center animate-bounce">
+                 <Users className="w-6 h-6 text-indigo-400" />
+              </div>
+              <div className="text-left">
+                  <p className="font-black text-white text-lg">Challenge Received!</p>
+                  <p className="text-xs text-slate-500">Someone wants to play you on DeepCastle</p>
+              </div>
+              <div className="flex gap-2">
+                 <button onClick={() => setIncomingChallenge(null)} className="px-4 py-2 hover:bg-white/5 rounded-xl text-xs font-bold text-slate-500">Decline</button>
+                 <button onClick={acceptChallenge} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-black text-white shadow-lg">Accept</button>
+              </div>
+           </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
-}
+}
