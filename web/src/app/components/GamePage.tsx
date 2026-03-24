@@ -295,25 +295,6 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     }
   }
 
-  const [boardId, setBoardId] = useState("game-board-1");
-
-  function forceUndo() {
-    const g = gameRef.current;
-    if (g.history().length < 2) return;
-    g.undo();
-    g.undo();
-    setFen(g.fen());
-    setMoveHistory(h => h.slice(0, -2));
-    setSquareStyles({});
-    setMoveFrom(null);
-    setHintArrow(null);
-    setIsPlayerTurn(true);
-    setGameEnded(false);
-    setThinking(false);
-    setEngineError(null);
-    setBotMessage("Take-back granted. Choose wisely.");
-    setBoardId("game-board-" + Date.now()); // force re-mount if position sync fails
-  }
 
   async function getHint() {
     if (loadingHint || thinking || !isPlayerTurn || gameEnded) return;
@@ -482,9 +463,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
             <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl border-2 border-[#3d3a36]">
                <Chessboard
-                 key={boardId}
                  options={{
-                   id: boardId,
+                   id: "game-board",
                    position: fen,
                    squareStyles: squareStyles,
                    darkSquareStyle: { backgroundColor: "#779556" },
@@ -548,11 +528,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               <div className="bg-[#161512] p-3 rounded-lg border border-white/5">
                 <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Search Speed</p>
                 <p className="text-xl font-bold tracking-tighter text-indigo-400">
-                  {stats.mateIn !== null ? (
-                    <span className="text-amber-400">{evalLabel}</span>
-                  ) : (
-                    <span>{(stats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
-                  )}
+                  <span>{(stats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
                 </p>
               </div>
             </div>
@@ -602,19 +578,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 <span className="text-[10px] uppercase font-black text-slate-500 group-hover:text-red-300">Resign</span>
               </button>
               <button
-                id="undo-btn"
-                onClick={forceUndo}
-                disabled={moveHistory.length < 2 || gameEnded}
-                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-[#3d3a36] hover:bg-slate-700 rounded transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <RotateCcw className="w-5 h-5 text-slate-400 group-hover:text-white" />
-                <span className="text-[10px] uppercase font-black text-slate-500 group-hover:text-slate-100">Undo</span>
-              </button>
-              <button
                 id="hint-btn"
                 onClick={getHint}
                 disabled={loadingHint || thinking || !isPlayerTurn || gameEnded}
-                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-[#3d3a36] hover:bg-amber-900/40 rounded transition-all group disabled:opacity-40 disabled:cursor-not-allowed relative"
+                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-[#3d3a36] hover:bg-amber-900/40 rounded transition-all group disabled:opacity-40 disabled:cursor-not-allowed relative col-span-2"
               >
                 <Lightbulb className={`w-5 h-5 text-slate-400 group-hover:text-amber-400 ${loadingHint ? "animate-pulse text-amber-400" : ""}`} />
                 <span className="text-[10px] uppercase font-black text-slate-500 group-hover:text-amber-300">
