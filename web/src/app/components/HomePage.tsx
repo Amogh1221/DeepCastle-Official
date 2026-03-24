@@ -82,12 +82,9 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
           className="flex flex-col items-center text-center mb-20"
         >
           {/* Logo */}
-          <div className="relative mb-8">
-            <div className="w-28 h-28 rounded-3xl bg-[#161619] flex items-center justify-center shadow-[0_0_80px_rgba(255,255,255,0.05)] border border-white/10 overflow-hidden">
-              <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-contain p-2" />
-            </div>
-            <div className="absolute -bottom-2 -right-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
-              Stable
+          <div className="mb-8">
+            <div className="w-28 h-28 rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(255,255,255,0.07)]">
+              <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-cover" />
             </div>
           </div>
 
