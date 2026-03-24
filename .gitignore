@@ -17,3 +17,6 @@ __pycache__/
 # Ignore stockfish binaries in game folder
 game/*.exe
 game/*.pgn
+
+# Local test scripts
+start_server.ps1
