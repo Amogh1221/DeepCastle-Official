@@ -1,6 +1,8 @@
-# DeepCastle v7: Official Repository
+# DEEPCASTLE v7
+![Deepcastle Logo](game/pieces.png)
 
-DeepCastle v7 is a professional-grade chess engine and application. It achieves high-performance play by combining the powerful **Official Stockfish C++ Search Engine** with a custom-trained **NNUE (Efficiently Updatable Neural Network)** evaluation brain.
+### The Neural Chess Powerhouse
+Deepcastle v7 is a high-performance chess engine based on the Stockfish core, featuring a custom-trained NNUE (Neural Network efficiently updatable) architecture. It achieves high-performance play by combining the powerful **Official Stockfish C++ Search Engine** with a custom-trained **NNUE (Efficiently Updatable Neural Network)** evaluation brain.
 
 ---
 

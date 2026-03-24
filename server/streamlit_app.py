@@ -7,10 +7,11 @@ import os
 import time
 import requests
 import json
+from PIL import Image
 from datetime import datetime
 
 # ============================================================
-# PAGE CONFIGURATION (Clean & Ghost Mode)
+# PAGE CONFIGURATION (Ghost Mode - Ultimate Clean)
 # ============================================================
 st.set_page_config(
     page_title="Deepcastle v7 | Professional Chess Engine",
@@ -26,7 +27,8 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .block-container {padding-top: 2rem; padding-bottom: 0rem;}
+    [data-testid="stSidebar"] {display: none;}
+    .block-container {padding: 1rem 5rem 0 5rem;}
     
     /* Overall Aesthetic */
     .stApp {
@@ -39,14 +41,15 @@ st.markdown("""
         background: linear-gradient(90deg, #5c6bc0, #c5cae9);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
+        font-size: 2.8rem;
+        margin-bottom: 0.2rem;
     }
     .sidebar-card {
         background: rgba(255, 255, 255, 0.05);
         border-radius: 12px;
         padding: 20px;
         border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 10px;
     }
     .move-log {
         font-family: 'Courier New', monospace;
@@ -55,28 +58,74 @@ st.markdown("""
         border-radius: 8px;
         max-height: 400px;
         overflow-y: auto;
+        border: 1px solid #30363d;
     }
     .stSpinner > div > div {
         border-top-color: #5c6bc0 !important;
+    }
+    div[data-testid="stMetric"] {
+        background: #161b22;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# ENGINE MANAGEMENT
+# LOGO & BRANDING
 # ============================================================
-ENGINE_BIN = "engine/deepcastle_linux"
-NETWORK_CUSTOM = "engine/output.nnue"
+logo_path = "../game/pieces.png" # Path relative to server folder if run from repo root
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    # We want a specific part of the logo/sprite or just show it small?
+    # Usually pieces.png is a sprite. For a logo, we just show a header.
+    pass
+
+# ============================================================
+# ENGINE CLASS (Inspired by game.py/deepcastle.py)
+# ============================================================
+class DeepCastleManager:
+    def __init__(self):
+        # Pick binary based on OS
+        if os.name == 'nt':
+            self.engine_path = os.path.abspath("../engine/deepcastle.exe")
+        else:
+            self.engine_path = os.path.abspath("engine/deepcastle_linux")
+            
+        self.network_path = os.path.abspath("engine/output.nnue")
+        self._engine = None
+
+    def get_engine(self):
+        if not self._engine:
+            self._engine = chess.engine.SimpleEngine.popen_uci(
+                self.engine_path, 
+                stderr=subprocess.DEVNULL
+            )
+            # Try to configure custom model
+            if os.path.exists(self.network_path):
+                try:
+                    self._engine.configure({"EvalFile": self.network_path})
+                except:
+                    pass
+        return self._engine
+
+    def stop(self):
+        if self._engine:
+            self._engine.quit()
+            self._engine = None
+
+# ============================================================
+# ENGINE MANAGEMENT (The Magic behind the curtains)
+# ============================================================
+ENGINE_BIN_LINUX = "engine/deepcastle_linux"
 
 def ensure_engine_ready():
-    if not os.path.exists(ENGINE_BIN):
-        with st.status("Building Deepcastle Engine for Linux...", expanded=True):
-            # Safe ARCH for Streamlit
+    # Only build on Linux (Streamlit Cloud)
+    if os.name != 'nt' and not os.path.exists(ENGINE_BIN_LINUX):
+        with st.status("Initializing Neural Engine...", expanded=True):
             subprocess.run(["make", "-j", "build", "ARCH=x86-64-sse41-popcnt"], cwd="engine/src")
-            subprocess.run(["mv", "engine/src/stockfish", ENGINE_BIN])
-    
-    if not os.path.exists(NETWORK_CUSTOM):
-        st.warning(f"Note: Custom model '{NETWORK_CUSTOM}' missing from repo. Engine will use default evaluation.")
+            subprocess.run(["mv", "engine/src/stockfish", ENGINE_BIN_LINUX])
 
 # ============================================================
 # SESSION STATE
@@ -94,16 +143,14 @@ if 'last_processed_move' not in st.session_state:
 # INTERACTIVE BOARD COMPONENT
 # ============================================================
 def interactive_board(fen):
-    # Fixed height and more stable JS dependencies
     html_code = f"""
-    <div id="board-container" style="background-color: #0d1117; color: white;">
-        <link rel="stylesheet"
-          href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <div id="board-container" style="background-color: #0d1117; color: white; display: flex; justify-content: center;">
+        <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
         <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
         <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
-        <div id="myBoard" style="width: 100%; max-width: 600px; margin: auto;"></div>
+        <div id="myBoard" style="width: 600px;"></div>
     </div>
 
     <script>
@@ -112,7 +159,7 @@ def interactive_board(fen):
 
     function onDragStart (source, piece, position, orientation) {{
         if (game.game_over()) return false;
-        // Only white moves (player is always white)
+        // Only allow White moves (User)
         if (piece.search(/^b/) !== -1) return false;
     }}
 
@@ -125,7 +172,7 @@ def interactive_board(fen):
 
         if (move === null) return 'snapback';
 
-        // Notify Streamlit with the UCI string and a unique ID to force an update
+        // Notify Streamlit
         if (window.parent.postMessage) {{
             window.parent.postMessage({{
                 type: 'streamlit:setComponentValue',
@@ -147,85 +194,75 @@ def interactive_board(fen):
         pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{{piece}}.png'
     }};
     board = Chessboard('myBoard', config);
-    
-    // Ensure the board is resized to container
-    $(window).resize(board.resize);
     </script>
     """
-    # Key changes every move to force re-render
-    return components.html(html_code, height=650)
+    return components.html(html_code, height=620)
 
 # ============================================================
-# ENGINE LOGIC
-# ============================================================
-def get_bot_move():
-    if not st.session_state.board.is_game_over():
-        if os.name != 'nt':
-            with st.spinner("DeepCastle is calculating..."):
-                engine = chess.engine.SimpleEngine.popen_uci(os.path.abspath(ENGINE_BIN))
-                if os.path.exists(NETWORK_CUSTOM):
-                    engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
-                
-                # Use current think_time slider value
-                limit = chess.engine.Limit(time=st.session_state.get('think_time', 1.0))
-                result = engine.analyse(st.session_state.board, limit)
-                
-                # Update Evaluation
-                score = result['score'].relative.score(mate_score=100000)
-                if score is not None:
-                    st.session_state.evaluation = score / 100.0
-                
-                # Play the best move
-                res = engine.play(st.session_state.board, limit)
-                st.session_state.board.push(res.move)
-                st.session_state.move_history.append(res.move.uci())
-                
-                engine.quit()
-
-# ============================================================
-# MAIN LAYOUT
+# MAIN INTERFACE
 # ============================================================
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.markdown('<h1 class="main-header italic">Deepcastle <span style="font-weight:300">v7</span></h1>', unsafe_allow_html=True)
-    if os.name != 'nt': ensure_engine_ready()
+    # Logo Integration
+    logo_file = "game/pieces.png"
+    if os.path.exists(logo_file):
+        st.image(logo_file, width=120)
+    
+    st.markdown('<h1 class="main-header">DEEPCASTLE <span style="font-weight:100; font-style:italic">v7</span></h1>', unsafe_allow_html=True)
+    st.caption("Custom Neural Architecture • HalfKAv2 hm^ • 2.7M NPS")
+    
+    ensure_engine_ready()
 
-    # The Interactive Board
+    # Board Display
     move_from_js = interactive_board(st.session_state.board.fen())
 
-    # Handle Human Move
-    if move_from_js and (move_from_js != st.session_state.last_processed_move or len(st.session_state.board.move_stack) % 2 == 0):
+    # Move Processing (The "game.py" Loop)
+    if move_from_js and move_from_js != st.session_state.last_processed_move:
         try:
             move = chess.Move.from_uci(move_from_js)
-            # Only process if it's the player's turn (White)
             if st.session_state.board.turn == chess.WHITE and move in st.session_state.board.legal_moves:
+                # 1. Apply Human Move
                 st.session_state.board.push(move)
                 st.session_state.move_history.append(move_from_js)
                 st.session_state.last_processed_move = move_from_js
                 
-                # BOT TURN IMMEDIATELY
-                get_bot_move()
+                # 2. bot thinking step
+                if not st.session_state.board.is_game_over():
+                    with st.spinner("Deepcastle is calculating..."):
+                        manager = DeepCastleManager()
+                        engine = manager.get_engine()
+                        
+                        limit = chess.engine.Limit(time=st.session_state.get('think_time', 1.0))
+                        # Evaluation
+                        info = engine.analyse(st.session_state.board, limit)
+                        score = info["score"].relative.score(mate_score=10000)
+                        if score is not None:
+                            st.session_state.evaluation = score / 100.0
+                            
+                        # Play
+                        result = engine.play(st.session_state.board, limit)
+                        st.session_state.board.push(result.move)
+                        st.session_state.move_history.append(result.move.uci())
+                        
+                        manager.stop()
                 st.rerun()
         except Exception as e:
-            # Illegal or invalid move input
             pass
 
 with col2:
-    st.session_state.think_time = st.slider("Bot Thinking Time (sec)", 0.1, 5.0, 1.0, key='think_slider')
-    
     st.markdown("### 📊 Engine Insights")
-    eval_score = st.session_state.evaluation
-    st.metric("Bot Evaluation", f"{eval_score:+0.2f}")
+    st.session_state.think_time = st.slider("Thinking Time (sec)", 0.1, 5.0, 1.0)
     
-    progress_val = max(0.0, min(1.0, (50 + eval_score * 5) / 100.0))
-    st.progress(progress_val, text="Advantage Meter")
-    
+    st.metric("Advantage", f"{st.session_state.evaluation:+0.2f}")
+    prog = max(0.0, min(1.0, (50 + st.session_state.evaluation * 5) / 100.0))
+    st.progress(prog, text="Win probability")
+
     st.markdown("### 📜 Move Analysis")
     moves_text = ""
-    for i, move in enumerate(st.session_state.move_history):
-        if i % 2 == 0: moves_text += f"**{i//2 + 1}.** {move} "
-        else: moves_text += f"{move}  \n"
+    for i, mv in enumerate(st.session_state.move_history):
+        if i % 2 == 0: moves_text += f"**{i//2 + 1}.** {mv} "
+        else: moves_text += f"{mv}  \n"
     st.markdown(f'<div class="move-log">{moves_text}</div>', unsafe_allow_html=True)
     
     if st.button("New Game", use_container_width=True):
@@ -236,4 +273,4 @@ with col2:
         st.rerun()
 
 st.markdown("---")
-st.caption("Deepcastle v7 | Professional Chess Engine GUI | Powered by Streamlit")
+st.caption("Deepcastle v7 | Developed by Amogh Gupta | Based on Stockfish Core")
