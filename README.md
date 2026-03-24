@@ -2,7 +2,7 @@
 ![Deepcastle Logo](game/DClogo.png)
 
 ## 🏆 The Neural Chess Powerhouse
-Deepcastle v7 is a high-performance chess engine and distributed web application. It combines a **Stockfish-based C++ Search Core** with a **Custom-Trained NNUE (Dual-Network)** architecture, deployed across a professional hybrid-cloud infrastructure.
+Deepcastle v7 is a high-performance chess engine and distributed web application. It combines a **Stockfish-based C++ Search Core** with a **Custom-Trained HalfKP NNUE** evaluation function, deployed across a professional hybrid-cloud infrastructure.
 
 ---
 
@@ -10,7 +10,7 @@ Deepcastle v7 is a high-performance chess engine and distributed web application
 Deepcastle v7 is built using a modern, decoupled architecture to ensure maximum performance and a premium user experience.
 
 ### 1. The Interface (Frontend - Vercel)
-*   **Framework:** Next.js 15 (App Router)
+*   **Framework:** Next.js 16 (App Router)
 *   **Styling:** Tailwind CSS with a **Glassmorphism** design language.
 *   **Hosting:** Vercel (Edge-optimized for low-latency UI rendering).
 *   **Key Features:** 
@@ -25,10 +25,10 @@ Deepcastle v7 is built using a modern, decoupled architecture to ensure maximum 
 *   **Protocol:** Bridging the web frontend to the raw C++ engine via the Universal Chess Interface (UCI) protocol.
 
 ### 3. The Brain (Engine Logic)
-The "Soul" of Deepcastle lies in its **Dual-NNUE Hybrid Architecture**:
-*   **Custom-Trained Neural Network (Big Brain):** Your primary trained `.nnue` file acts as the `EvalFile`. This is used for complex positional understanding and long-term strategy. It was trained on 350M+ grandmaster positions.
-*   **Stockfish Optimized Network (Small Brain):** A secondary `EvalFileSmall` network used for ultra-fast tactical verification in simple positions, maintaining the engine’s speed in bullet/blitz contexts.
-*   **Search muscle:** Principal Variation Search (PVS) with advanced pruning (LMR, Null Move Pruning) and a optimized Transposition Table.
+The "Soul" of Deepcastle lies in its **Custom-Trained NNUE** fused into a Stockfish search core:
+*   **Custom Neural Brain (`output.nnue`):** A fully custom-trained NNUE using **HalfKP** features, trained on Stockfish self-play data (`large_gensfen_multipvdiff_100_d9.binpack`). Loaded at runtime via the `EvalFile` UCI option — this drives all positional evaluation.
+*   **Stockfish Fallback NNUEs:** Two standard Stockfish nets are downloaded at Docker build time solely to prevent the engine from crashing on startup. The engine immediately replaces them with `output.nnue` once configured.
+*   **Search Core:** Principal Variation Search (PVS) with advanced pruning (LMR, Null Move Pruning) and an optimized Transposition Table — powered by the Stockfish search infrastructure.
 
 ---
 
@@ -36,9 +36,9 @@ The "Soul" of Deepcastle lies in its **Dual-NNUE Hybrid Architecture**:
 
 ### Data Flow Path:
 1.  **Input:** User makes a move on the **Next.js** board.
-2.  **Request:** The move (in UCI/FEN format) is sent via HTTPS POST to the **Hugging Face API**.
-3.  **Calculation:** The **FastAPI** worker receives the FEN, boots the **Deepcastle C++ Engine**, and loads the **Dual-Brains** into memory.
-4.  **Search:** The engine searches to the specified depth/time using your custom NNUE for evaluation.
+2.  **Request:** The move (in FEN format) is sent via HTTPS POST to the **Hugging Face API**.
+3.  **Calculation:** The **FastAPI** worker receives the FEN, boots the **Deepcastle C++ Engine**, and loads `output.nnue` into memory.
+4.  **Search:** The engine searches to the specified depth/time using the custom NNUE for evaluation.
 5.  **Return:** The "Best Move" plus technical stats (Depth, NPS, Nodes, Score, PV) are returned to the UI.
 6.  **Update:** The Vercel board updates instantly, displaying the bot's response and search analysis.
 
@@ -56,9 +56,10 @@ In official match testing against **Stockfish 18** (the world's strongest chess 
 
 ## 📉 Training Pipeline
 The `training` folder contains the full codebase used to develop the DeepCastle neural weights.
-*   **Features (HalfKAv2_hm)**: Perspective-aware king-centric features.
-*   **Dataset**: 32GB `.binpack` (~354M positions).
-*   **Engine Target:** Custom C++ weights tailored for the Stockfish bitboard system.
+*   **Feature Set (HalfKP):** King-centric perspective features — 20,480 inputs per side. Each feature encodes (King Square × Piece Type × Piece Square).
+*   **Dataset:** `large_gensfen_multipvdiff_100_d9.binpack` — Stockfish self-play positions evaluated at depth 9, with multi-PV score differences ≤ 100 centipawns.
+*   **Architecture:** L1=256, L2=31, L3=32 with 8 layer stacks (bucketed by piece count) and a PSQT shortcut. Trained using the Ranger21 optimizer and a symmetric sigmoid loss function.
+*   **Output:** `engine/output.nnue` — a 6.2 MB quantized binary brain file compatible with the Stockfish NNUE loader.
 
 ---
 
@@ -71,8 +72,8 @@ The `training` folder contains the full codebase used to develop the DeepCastle 
 
 ---
 
-## 🚀 Deployment Guide
-For full instructions on setting up your own instance of the Deepcastle Cloud, see **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**.
+## 🚀 Architecture Deep-Dive
+For full technical details on how the engine works end-to-end — from training data to cloud deployment — see **[MECHANISM.md](MECHANISM.md)**.
 
 ---
 *Developed by Amogh Gupta & Antigravity AI*
