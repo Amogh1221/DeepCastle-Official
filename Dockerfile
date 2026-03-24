@@ -16,48 +16,36 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy ALL files from the repository (to get the NNUE and server files)
+# Copy EVERYTHING from the repository (to get the NNUE and server files)
 COPY . .
 
 # ============================================================
-# GOD-TIER ENGINE BUILD (Self-Healing Source Hijack)
+# GOD-TIER ENGINE BUILD (Verified Pathing)
 # ============================================================
-# 1. Clone a fresh, clean Stockfish repository (avoids missing local scripts)
 RUN echo "Cloning fresh engine source..." && \
     git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 
-# 2. Overwrite the engine with your custom Deepcastle network (if it exists)
-RUN if [ -f "/app/engine/output.nnue" ]; then \
-        echo "Successfully found custom Deepcastle NNUE. Hijacking clean source..."; \
-        cp /app/engine/output.nnue /app/clean_engine/src/deepcastle.nnue; \
-    fi
+# 1. Search for output.nnue anywhere in the repo and copy it to the engine room
+RUN echo "Relocating neural brain..." && \
+    mkdir -p /app/engine && \
+    find /app -name "*.nnue" -exec cp {} /app/engine/output.nnue \; || echo "No NNUE found in repo."
 
-# 3. Build the engine in the clean directory
-# We use ARCH=x86-64-sse41-popcnt (Very compatible with cloud)
-# We disable the network fetch (since we provide it)
+# 2. Build the engine
 WORKDIR /app/clean_engine/src
 RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
-    mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
+    chmod +x /app/engine/deepcastle && \
     echo "Engine build complete!"
 
 # ============================================================
-# FALLBACK: Linux Binary (Alternative Mirror)
+# FINAL CHECK: Ensure the Brain (NNUE) is exactly where it belongs
 # ============================================================
 WORKDIR /app/engine
-RUN if [ ! -f "deepcastle" ]; then \
-    echo "Using Failsafe: Downloading Rock-Solid Linux Release SF 16.1..."; \
-    wget https://github.com/official-stockfish/Stockfish/releases/download/sf_16.1/stockfish-ubuntu-x86-64-sse41-popcnt.tar.xz && \
-    tar -xvf stockfish-ubuntu-x86-64-sse41-popcnt.tar.xz && \
-    cp stockfish/stockfish-ubuntu-x86-64-sse41-popcnt deepcastle && \
-    rm -rf stockfish*; \
-    fi && chmod +x deepcastle
-
-# Ensure NNUE exists in the engine directory for runtime
-# (Deepcastle v7 uses output.nnue) 
+# If it's still missing, download a guaranteed high-performance brain (v17/18 compatible)
 RUN if [ ! -f "output.nnue" ]; then \
-    echo "Brain missing. Downloading specialized NNUE..." && \
-    wget https://tests.stockfishchess.org/api/nn/nn-ae6a455a-c521-4f11-923f-5626359074df.nnue -O output.nnue; \
+    echo "Brain missing. Downloading specialized NNUE (v17 Ref)..." && \
+    wget https://github.com/official-stockfish/Stockfish/raw/master/src/nn-1111b1111b11.nnue -O output.nnue || \
+    wget https://tests.stockfishchess.org/api/nn/nn-5af11540bbfe.nnue -O output.nnue; \
     fi
 
 # ============================================================
