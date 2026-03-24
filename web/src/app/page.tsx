@@ -50,6 +50,9 @@ export default function DeepcastlePremium() {
   // ============================================================
   // ENGINE LOGIC
   // ============================================================
+  // ============================================================
+  // ENGINE LOGIC
+  // ============================================================
   const fetchMove = useCallback(async (fen: string) => {
     setThinking(true);
     try {
@@ -61,50 +64,69 @@ export default function DeepcastlePremium() {
       const data = await response.json();
       
       if (data.bestmove) {
-        const move = game.move(data.bestmove);
-        if (move) {
-          setGame(new Chess(game.fen()));
-          setMoveHistory(prev => [...prev, { san: move.san, score: data.score.toFixed(2) }]);
-          setStats({
-            score: data.score,
-            depth: data.depth,
-            nodes: data.nodes,
-            nps: data.nps,
-            pv: data.pv
-          });
-        }
+        setGame((prevGame) => {
+          const newGame = new Chess(prevGame.fen());
+          try {
+            const move = newGame.move(data.bestmove);
+            if (move) {
+              setMoveHistory(prev => [...prev, { san: move.san, score: data.score.toFixed(2) }]);
+              setStats({
+                score: data.score,
+                depth: data.depth,
+                nodes: data.nodes,
+                nps: data.nps,
+                pv: data.pv
+              });
+              return newGame;
+            }
+          } catch (err) {
+            console.error("Invalid engine move:", data.bestmove);
+          }
+          return prevGame;
+        });
       }
     } catch (error) {
       console.error("Engine API failed:", error);
     } finally {
       setThinking(false);
     }
-  }, [game, thinkTime]);
+  }, [thinkTime]);
 
   // ============================================================
   // HANDLERS
   // ============================================================
   function onDrop(sourceSquare: string, targetSquare: string) {
-    if (game.turn() === 'b' || game.isGameOver()) return false;
+    let moveSuccessful = false;
+    let newFen = "";
 
-    try {
-      const move = game.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: "q",
-      });
-
-      if (move === null) return false;
-
-      setGame(new Chess(game.fen()));
-      setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
+    setGame((prevGame) => {
+      if (prevGame.turn() === 'b' || prevGame.isGameOver()) return prevGame;
       
-      // Trigger Engine
-      setTimeout(() => fetchMove(game.fen()), 200);
+      const newGame = new Chess(prevGame.fen());
+      try {
+        const move = newGame.move({
+          from: sourceSquare,
+          to: targetSquare,
+          promotion: "q",
+        });
+
+        if (move) {
+          moveSuccessful = true;
+          newFen = newGame.fen();
+          setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
+          return newGame;
+        }
+      } catch (e) {
+        console.error("Illegal user move");
+      }
+      return prevGame;
+    });
+
+    if (moveSuccessful && newFen) {
+      setTimeout(() => fetchMove(newFen), 200);
       return true;
-    } catch (e) {
-      return false;
     }
+    return false;
   }
 
   function resetGame() {
