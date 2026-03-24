@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Chessboard } from "react-chessboard";
-import { Chess, Move } from "chess.js";
+import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Trophy, 
@@ -76,33 +76,41 @@ export default function DeepcastleGrandmaster() {
         setGame((prevGame) => {
           const newGame = new Chess(prevGame.fen());
           try {
-            // Safe engine move execution
-            const moves = newGame.moves({ verbose: true });
-            const engineMove = moves.find(m => data.bestmove.startsWith(m.from + m.to));
+            // Safe engine move parsing (handles variations like e2e4 or standard algebraic)
+            let appliedMove = null;
+            try {
+               appliedMove = newGame.move(data.bestmove);
+            } catch (e1) {
+               const moveParams = {
+                  from: data.bestmove.substring(0, 2),
+                  to: data.bestmove.substring(2, 4),
+                  promotion: data.bestmove.length > 4 ? data.bestmove.substring(4) : undefined
+               };
+               appliedMove = newGame.move(moveParams);
+            }
             
-            if (engineMove) {
-              const resultingMove = newGame.move(engineMove.san);
-              if (resultingMove) {
-                setMoveHistory(prev => [...prev, { san: resultingMove.san, score: data.score.toFixed(2) }]);
-                setStats({
-                  score: data.score,
-                  depth: data.depth,
-                  nodes: data.nodes,
-                  nps: data.nps,
-                  pv: data.pv
-                });
-                
-                // Personality
-                if (data.score > 1.5) setBotMessage("My position is dominating.");
-                else if (data.score < -1.5) setBotMessage("You are playing remarkably well.");
-                else setBotMessage("So be it.");
-                
-                return newGame;
-              }
+            if (appliedMove) {
+              // Valid Engine Move
+              setMoveHistory(prev => [...prev, { san: appliedMove.san, score: data.score.toFixed(2) }]);
+              setStats({
+                score: data.score,
+                depth: data.depth,
+                nodes: data.nodes,
+                nps: data.nps,
+                pv: data.pv
+              });
+              
+              if (data.score > 1.5) setBotMessage("My position is dominating.");
+              else if (data.score < -1.5) setBotMessage("You are playing remarkably well.");
+              else setBotMessage("So be it.");
+              
+              return newGame;
             }
           } catch (err) {
-            console.error("Invalid engine move:", data.bestmove, err);
+            console.error("Invalid engine move fallback:", data.bestmove, err);
           }
+          
+          setBotMessage("I encountered an internal error. Your turn.");
           return prevGame;
         });
       }
@@ -115,35 +123,42 @@ export default function DeepcastleGrandmaster() {
   }, [thinkTime]);
 
   // ============================================================
-  // SYNCHRONOUS HANDLERS (FINALLY FIXES SNAPPING)
+  // BULLETPROOF HANDLERS (FIXES DRAG & DROP FOR chess.js 1.0)
   // ============================================================
   function executeUserMove(sourceSquare: string, targetSquare: string) {
     const gameCopy = new Chess(game.fen());
-    const moves = gameCopy.moves({ verbose: true });
-    // Find matching move (handling basic from/to, ignoring promotion specifics for simplicity, but defaulting to Queen if needed)
-    const validMove = moves.find(m => m.from === sourceSquare && m.to === targetSquare);
-
-    if (validMove) {
+    
+    let move = null;
+    
+    // Most bulletproof way to perform a move for chess.js 1.0
+    try {
+      move = gameCopy.move({ from: sourceSquare, to: targetSquare });
+    } catch (e1) {
       try {
-        const move = gameCopy.move(validMove.san);
-        if (move) {
-          setGame(gameCopy);
-          setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
-          setBotMessage("Formidable move. Calculating response...");
-          setMoveFrom("");
-          setOptionSquares({});
-          
-          setTimeout(() => fetchMove(gameCopy.fen()), 200);
-          return true;
-        }
-      } catch (e) {
-        return false;
+        move = gameCopy.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+      } catch (e2) {
+        // Not a legal move
       }
     }
+
+    if (move) {
+      // Valid User Move
+      setGame(gameCopy);
+      setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
+      setBotMessage("Formidable move. Calculating...");
+      setMoveFrom("");
+      setOptionSquares({});
+      
+      // Delay fetch slightly so React finishes state render of the user piece snapping to target square
+      setTimeout(() => fetchMove(gameCopy.fen()), 150);
+      return true;
+    }
+    
     return false;
   }
 
   function onDrop(sourceSquare: string, targetSquare: string) {
+    // Only allow moves when it's white's turn (user's turn)
     if (game.turn() === 'b' || game.isGameOver()) return false;
     return executeUserMove(sourceSquare, targetSquare);
   }
@@ -172,9 +187,11 @@ export default function DeepcastleGrandmaster() {
         borderRadius: "50%",
       };
     });
+    
     newSquares[square] = {
       background: "rgba(255, 255, 0, 0.4)",
     };
+    
     setOptionSquares(newSquares);
     return true;
   }
@@ -182,18 +199,18 @@ export default function DeepcastleGrandmaster() {
   function onSquareClick(square: string) {
     if (game.turn() === 'b' || game.isGameOver()) return;
 
-    // from square
+    // First click: select piece
     if (!moveFrom) {
       const hasMoveOptions = getMoveOptions(square);
       if (hasMoveOptions) setMoveFrom(square);
       return;
     }
 
-    // to square
+    // Second click: attempt to place piece
     if (moveFrom) {
       const success = executeUserMove(moveFrom, square);
       if (!success) {
-        // if invalid, set new from square
+        // If clicking a new piece instead of a target square
         const hasMoveOptions = getMoveOptions(square);
         if (hasMoveOptions) setMoveFrom(square);
         else {
@@ -225,7 +242,7 @@ export default function DeepcastleGrandmaster() {
     });
   }
 
-  // =join eval bar calculation
+  // Linear clamped prob for dynamic bar
   const winProb = 50 + (stats.score * 7);
   const clampedProb = Math.max(5, Math.min(95, winProb));
 
@@ -244,7 +261,7 @@ export default function DeepcastleGrandmaster() {
         ============================================================ */}
         <div className="lg:col-span-6 flex flex-col gap-4">
           
-          {/* Bot Profile (Grandmaster Judit Style) */}
+          {/* Bot Profile */}
           <div className="flex items-center justify-between p-3 bg-[#262421] rounded-lg border-b-2 border-slate-900 shadow-lg">
              <div className="flex items-center gap-3">
                 <div className="relative">
@@ -291,6 +308,7 @@ export default function DeepcastleGrandmaster() {
                    position: game.fen(),
                    onPieceDrop: onDrop,
                    onSquareClick: onSquareClick,
+                   arePiecesDraggable: true,
                    customSquareStyles: optionSquares,
                    customBoardStyle: {
                      borderRadius: '4px',
