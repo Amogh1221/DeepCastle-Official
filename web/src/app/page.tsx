@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Chessboard } from "react-chessboard";
-import { Chess } from "chess.js";
+import { Chess, Move } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Trophy, 
@@ -53,6 +53,10 @@ export default function DeepcastleGrandmaster() {
   const [thinkTime, setThinkTime] = useState(1.0);
   const [botMessage, setBotMessage] = useState("Let's see what you've got.");
   
+  // Click-to-move states
+  const [moveFrom, setMoveFrom] = useState("");
+  const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
+  
   // ============================================================
   // ENGINE LOGIC
   // ============================================================
@@ -72,26 +76,32 @@ export default function DeepcastleGrandmaster() {
         setGame((prevGame) => {
           const newGame = new Chess(prevGame.fen());
           try {
-            const move = newGame.move(data.bestmove);
-            if (move) {
-              setMoveHistory(prev => [...prev, { san: move.san, score: data.score.toFixed(2) }]);
-              setStats({
-                score: data.score,
-                depth: data.depth,
-                nodes: data.nodes,
-                nps: data.nps,
-                pv: data.pv
-              });
-              
-              // Personality
-              if (data.score > 1.5) setBotMessage("My position is dominating.");
-              else if (data.score < -1.5) setBotMessage("You are playing remarkably well.");
-              else setBotMessage("So be it.");
-              
-              return newGame;
+            // Safe engine move execution
+            const moves = newGame.moves({ verbose: true });
+            const engineMove = moves.find(m => data.bestmove.startsWith(m.from + m.to));
+            
+            if (engineMove) {
+              const resultingMove = newGame.move(engineMove.san);
+              if (resultingMove) {
+                setMoveHistory(prev => [...prev, { san: resultingMove.san, score: data.score.toFixed(2) }]);
+                setStats({
+                  score: data.score,
+                  depth: data.depth,
+                  nodes: data.nodes,
+                  nps: data.nps,
+                  pv: data.pv
+                });
+                
+                // Personality
+                if (data.score > 1.5) setBotMessage("My position is dominating.");
+                else if (data.score < -1.5) setBotMessage("You are playing remarkably well.");
+                else setBotMessage("So be it.");
+                
+                return newGame;
+              }
             }
           } catch (err) {
-            console.error("Invalid engine move:", data.bestmove);
+            console.error("Invalid engine move:", data.bestmove, err);
           }
           return prevGame;
         });
@@ -107,37 +117,95 @@ export default function DeepcastleGrandmaster() {
   // ============================================================
   // SYNCHRONOUS HANDLERS (FINALLY FIXES SNAPPING)
   // ============================================================
-  function onDrop(sourceSquare: string, targetSquare: string) {
-    if (game.turn() === 'b' || game.isGameOver()) return false;
+  function executeUserMove(sourceSquare: string, targetSquare: string) {
+    const gameCopy = new Chess(game.fen());
+    const moves = gameCopy.moves({ verbose: true });
+    // Find matching move (handling basic from/to, ignoring promotion specifics for simplicity, but defaulting to Queen if needed)
+    const validMove = moves.find(m => m.from === sourceSquare && m.to === targetSquare);
 
-    // 1. Calculate the move SYNCHRONOUSLY to prevent snapping back
-    try {
-      const gameCopy = new Chess(game.fen());
-      const move = gameCopy.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: "q",
-      });
-
-      if (move) {
-        // 2. Accept the move on the board NOW
-        setGame(gameCopy);
-        setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
-        setBotMessage("Formidable move. Calculating response...");
-        
-        // 3. Trigger Engine shortly after pieces snap to their grid
-        setTimeout(() => fetchMove(gameCopy.fen()), 200);
-        return true;
+    if (validMove) {
+      try {
+        const move = gameCopy.move(validMove.san);
+        if (move) {
+          setGame(gameCopy);
+          setMoveHistory(prev => [...prev, { san: move.san, score: "USR" }]);
+          setBotMessage("Formidable move. Calculating response...");
+          setMoveFrom("");
+          setOptionSquares({});
+          
+          setTimeout(() => fetchMove(gameCopy.fen()), 200);
+          return true;
+        }
+      } catch (e) {
+        return false;
       }
-    } catch (e) {
-      return false;
     }
     return false;
+  }
+
+  function onDrop(sourceSquare: string, targetSquare: string) {
+    if (game.turn() === 'b' || game.isGameOver()) return false;
+    return executeUserMove(sourceSquare, targetSquare);
+  }
+
+  function getMoveOptions(square: string) {
+    const moves = game.moves({
+      square: square as any,
+      verbose: true,
+    });
+    
+    if (moves.length === 0) {
+      setOptionSquares({});
+      return false;
+    }
+
+    const newSquares: Record<string, any> = {};
+    moves.forEach((move) => {
+      newSquares[move.to] = {
+        background:
+          game.get(move.to as any) && game.get(move.to as any).color !== game.get(square as any).color
+            ? "radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)"
+            : "radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)",
+        borderRadius: "50%",
+      };
+    });
+    newSquares[square] = {
+      background: "rgba(255, 255, 0, 0.4)",
+    };
+    setOptionSquares(newSquares);
+    return true;
+  }
+
+  function onSquareClick(square: string) {
+    if (game.turn() === 'b' || game.isGameOver()) return;
+
+    // from square
+    if (!moveFrom) {
+      const hasMoveOptions = getMoveOptions(square);
+      if (hasMoveOptions) setMoveFrom(square);
+      return;
+    }
+
+    // to square
+    if (moveFrom) {
+      const success = executeUserMove(moveFrom, square);
+      if (!success) {
+        // if invalid, set new from square
+        const hasMoveOptions = getMoveOptions(square);
+        if (hasMoveOptions) setMoveFrom(square);
+        else {
+          setMoveFrom("");
+          setOptionSquares({});
+        }
+      }
+    }
   }
 
   function resetGame() {
     setGame(new Chess());
     setMoveHistory([]);
+    setMoveFrom("");
+    setOptionSquares({});
     setBotMessage("A fresh start. Your move.");
     setStats({ score: 0, depth: 0, nodes: 0, nps: 0, pv: "" });
   }
@@ -148,6 +216,8 @@ export default function DeepcastleGrandmaster() {
       g.undo(); // Undo Bot
       g.undo(); // Undo User
       setMoveHistory(prevHistory => prevHistory.slice(0, -2));
+      setMoveFrom("");
+      setOptionSquares({});
       return new Chess(g.fen());
     });
   }
@@ -189,10 +259,6 @@ export default function DeepcastleGrandmaster() {
                    <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
                      Deepcastle v7 <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">3604 Elo</span>
                    </h3>
-                   <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="w-2 h-2 rounded-full bg-gray-500" />
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-tighter">AI AGENT</span>
-                   </div>
                 </div>
              </div>
              <Settings2 className="w-5 h-5 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors" />
@@ -215,12 +281,14 @@ export default function DeepcastleGrandmaster() {
             </div>
 
             {/* Chessboard Container */}
-            <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl relative border-2 border-[#3d3a36]">
+            <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl relative border-2 border-[#3d3a36]" onContextMenu={(e) => e.preventDefault()}>
                {/* @ts-ignore */}
                <Chessboard 
                  {...({
                    position: game.fen(),
                    onPieceDrop: onDrop,
+                   onSquareClick: onSquareClick,
+                   customSquareStyles: optionSquares,
                    customBoardStyle: {
                      borderRadius: '4px',
                    },
@@ -250,10 +318,6 @@ export default function DeepcastleGrandmaster() {
           
           {/* Bot Thinking & Personality */}
           <section className="bg-[#262421] rounded-lg border border-[#3d3a36] flex flex-col shadow-xl">
-             <div className="p-4 flex items-center gap-2 border-b border-white/5 uppercase tracking-widest text-[10px] font-black text-slate-500">
-                <MessageSquare className="w-3 h-3" /> System Dialogue
-             </div>
-             
              <div className="p-6 flex gap-4 min-h-[120px]">
                 <div className="w-12 h-12 flex-shrink-0 bg-indigo-600/20 rounded-lg flex items-center justify-center border border-indigo-500/30">
                    <Cpu className="w-7 h-7 text-indigo-400" />
