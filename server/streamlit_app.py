@@ -10,17 +10,25 @@ import json
 from datetime import datetime
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIGURATION (Clean & Ghost Mode)
 # ============================================================
 st.set_page_config(
     page_title="Deepcastle v7 | Professional Chess Engine",
     page_icon="♟️",
     layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for the overall page aesthetic
+# Custom CSS to completely HIDE Streamlit UI and style the app
 st.markdown("""
 <style>
+    /* Hide Streamlit components */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {padding-top: 2rem; padding-bottom: 0rem;}
+    
+    /* Overall Aesthetic */
     .stApp {
         background-color: #0d1117;
         color: #c9d1d9;
@@ -32,6 +40,7 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-size: 2.5rem;
+        margin-bottom: 1rem;
     }
     .sidebar-card {
         background: rgba(255, 255, 255, 0.05);
@@ -59,11 +68,12 @@ NETWORK_CUSTOM = "engine/output.nnue"
 def ensure_engine_ready():
     if not os.path.exists(ENGINE_BIN):
         with st.status("Building Deepcastle Engine for Linux...", expanded=True):
+            # Safe ARCH for Streamlit
             subprocess.run(["make", "-j", "build", "ARCH=x86-64-sse41-popcnt"], cwd="engine/src")
             subprocess.run(["mv", "engine/src/stockfish", ENGINE_BIN])
     
     if not os.path.exists(NETWORK_CUSTOM):
-        st.warning(f"Custom model '{NETWORK_CUSTOM}' missing! Please upload it to your repo.")
+        st.warning(f"Note: Custom model '{NETWORK_CUSTOM}' missing from repo. Engine will use default evaluation.")
 
 # ============================================================
 # SESSION STATE
@@ -76,24 +86,20 @@ if 'evaluation' not in st.session_state:
     st.session_state.evaluation = 0.0
 
 # ============================================================
-# DRAG-AND-DROP COMPONENT (The Magic)
+# INTERACTIVE BOARD COMPONENT
 # ============================================================
-def interactive_board(fen, last_move=None):
-    # A complete drag-and-drop board using chessboard.js
+def interactive_board(fen):
+    # Fixed height and more stable JS dependencies
     html_code = f"""
-    <link rel="stylesheet"
-          href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
-          integrity="sha384-q94+BZtLrkL1/ohfjR8c6L+A6qzNH9R2+BLwyoAfu3i/WCvQjzL2RQJ3uNHDISdU"
-          crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"
-            integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
-            crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"
-            integrity="sha384-8Vi8W97iL4p84KxmdK8sly9u2+G67KxJ4FqJ9E0hT/V4W9u9Srk8Q9f4S5R9E9hT"
-            crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <div id="board-container" style="background-color: #0d1117; color: white;">
+        <link rel="stylesheet"
+          href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+        <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+        <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
-    <div id="myBoard" style="width: 100%; max-width: 600px; margin: auto;"></div>
+        <div id="myBoard" style="width: 100%; max-width: 600px; margin: auto;"></div>
+    </div>
 
     <script>
     var board = null;
@@ -116,11 +122,13 @@ def interactive_board(fen, last_move=None):
 
         if (move === null) return 'snapback';
 
-        // Notify Streamlit about the move
-        window.parent.postMessage({{
-            type: 'streamlit:setComponentValue',
-            value: move.from + move.to
-        }}, "*");
+        // Notify Streamlit
+        if (window.parent.postMessage) {{
+            window.parent.postMessage({{
+                type: 'streamlit:setComponentValue',
+                value: move.from + move.to
+            }}, "*");
+        }}
     }}
 
     function onSnapEnd () {{
@@ -136,12 +144,15 @@ def interactive_board(fen, last_move=None):
         pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{{piece}}.png'
     }};
     board = Chessboard('myBoard', config);
+    
+    // Ensure the board is resized to container
+    $(window).resize(board.resize);
     </script>
     """
-    return components.html(html_code, height=620)
+    return components.html(html_code, height=650)
 
 # ============================================================
-# MAIN INTERFACE
+# MAIN LAYOUT
 # ============================================================
 col1, col2 = st.columns([2, 1])
 
@@ -152,7 +163,7 @@ with col1:
     # The Interactive Board
     move_from_js = interactive_board(st.session_state.board.fen())
 
-    # Handle the move from JavaScript
+    # Handle Human Move
     if move_from_js:
         try:
             move = chess.Move.from_uci(move_from_js)
@@ -163,10 +174,15 @@ with col1:
                 # Make bot move
                 if not st.session_state.board.is_game_over():
                     if os.name != 'nt':
-                        with st.spinner("Bot is thinking..."):
+                        with st.spinner("Bot is calculating..."):
+                            time.sleep(1) # Visual pause
                             engine = chess.engine.SimpleEngine.popen_uci(os.path.abspath(ENGINE_BIN))
-                            engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
-                            result = engine.play(st.session_state.board, chess.engine.Limit(time=1.0))
+                            # Check if custom model exists, otherwise let engine choose
+                            if os.path.exists(NETWORK_CUSTOM):
+                                engine.configure({"EvalFile": os.path.abspath(NETWORK_CUSTOM)})
+                            
+                            # Using the think_time from col2
+                            result = engine.play(st.session_state.board, chess.engine.Limit(time=st.session_state.get('think_time', 1.0)))
                             st.session_state.board.push(result.move)
                             st.session_state.move_history.append(result.move.uci())
                             engine.quit()
@@ -176,7 +192,9 @@ with col1:
 
 with col2:
     st.markdown("### 📊 Engine Insights")
-    think_time = st.slider("Bot Thinking Time (sec)", 0.1, 5.0, 1.0)
+    
+    # Store slider in session state so col1 can access it
+    st.session_state.think_time = st.slider("Bot Thinking Time (sec)", 0.1, 5.0, 1.0, key='think_slider')
     
     eval_score = st.session_state.evaluation
     st.metric("Bot Evaluation", f"{eval_score:+0.2f}")
