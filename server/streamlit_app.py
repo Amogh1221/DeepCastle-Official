@@ -75,7 +75,7 @@ st.markdown("""
 # ============================================================
 # LOGO & BRANDING
 # ============================================================
-logo_path = "../game/pieces.png" # Path relative to server folder if run from repo root
+logo_path = "../game/DClogo.png" # Path relative to server folder if run from repo root
 if os.path.exists(logo_path):
     logo = Image.open(logo_path)
     # We want a specific part of the logo/sprite or just show it small?
