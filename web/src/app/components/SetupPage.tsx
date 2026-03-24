@@ -8,15 +8,19 @@ import {
 import { GameSettings, PlayerColor, GameMode } from "../types";
 
 export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => void; onBack: () => void }) {
-  const [playerColor, setPlayerColor] = useState<PlayerColor>("white");
+  const [playerColor, setPlayerColor] = useState<PlayerColor | "random">("white");
   const [thinkTime, setThinkTime] = useState(1.0);
   const [mode, setMode] = useState<GameMode>("ai");
 
-  const engineTimeOptions = [0.1, 0.5, 1.0, 2.0, 5.0];
+  const engineTimeOptions = [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0];
 
   const handleStart = () => {
+    let resolvedColor = playerColor;
+    if (resolvedColor === "random") {
+      resolvedColor = Math.random() < 0.5 ? "white" : "black";
+    }
     onStart({
-      playerColor,
+      playerColor: resolvedColor as PlayerColor,
       thinkTime,
       mode,
       matchSettings: { timeLimit: 0, increment: 0 }
@@ -70,7 +74,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
             {/* Color Selection */}
             <div>
               <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block">Play As</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => setPlayerColor("white")}
                   className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
@@ -79,6 +83,17 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                 >
                   <div className="w-8 h-8 rounded-full bg-white shadow-lg border border-white/20" />
                   <span className="text-xs font-bold">White</span>
+                </button>
+                <button
+                  onClick={() => setPlayerColor("random")}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                    playerColor === "random" ? "border-indigo-500 bg-indigo-500/10" : "border-white/5 bg-[#0d0d0f]"
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-white to-[#1a1a1a] border border-slate-500 flex items-center justify-center font-bold text-xs text-white pb-[2px]">
+                    ?
+                  </div>
+                  <span className="text-xs font-bold">Random</span>
                 </button>
                 <button
                   onClick={() => setPlayerColor("black")}
@@ -98,16 +113,16 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                 <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center gap-2">
                   <Clock className="w-3 h-3" /> Engine Think Time
                 </label>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {engineTimeOptions.map((t) => (
                     <button
                       key={t}
                       onClick={() => setThinkTime(t)}
-                      className={`py-2 rounded-lg text-[10px] font-black border transition-all ${
+                      className={`py-2 px-3 rounded-lg text-[10px] font-black border transition-all flex-1 ${
                         thinkTime === t ? "border-indigo-500 bg-indigo-500/10 text-indigo-300" : "border-white/5 bg-[#0d0d0f] text-slate-500"
                       }`}
                     >
-                      {t < 1 ? t * 1000 + "ms" : t + "s"}
+                      {t < 1 ? Math.round(t * 1000) + "ms" : t + "s"}
                     </button>
                   ))}
                 </div>
