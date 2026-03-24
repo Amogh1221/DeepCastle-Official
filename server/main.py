@@ -85,6 +85,7 @@ class MoveResponse(BaseModel):
     nodes: int
     nps: int
     pv: str
+    mate_in: Optional[int] = None
 
 # ─── New Analysis Types ────────────────────────────────────────────────────────
 class AnalyzeRequest(BaseModel):
@@ -129,14 +130,15 @@ async def get_engine():
             pass
     return engine
 
-def get_normalized_score(info, turn_color=chess.WHITE):
+def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
     if "score" not in info:
-        return 0.0
+        return 0.0, None
     raw = info["score"].white()
     if raw.is_mate():
-        return 10000.0 if (raw.mate() or 0) > 0 else -10000.0
-    return raw.score() or 0.0
+        m = raw.mate() or 0
+        return (10000.0 if m > 0 else -10000.0), m
+    return raw.score() or 0.0, None
 
 # ─── Engine Inference Route ────────────────────────────────────────────────────
 @app.post("/move", response_model=MoveResponse)
@@ -151,7 +153,7 @@ async def get_move(request: MoveRequest):
         info = await engine.analyse(board, limit)
         
         # From White's perspective in CP -> converted to Pawns for UI
-        score_cp = get_normalized_score(info)
+        score_cp, mate_in = get_normalized_score(info)
         
         depth = info.get("depth", 0)
         nodes = info.get("nodes", 0)
@@ -179,7 +181,8 @@ async def get_move(request: MoveRequest):
             depth=depth,
             nodes=nodes,
             nps=nps,
-            pv=pv
+            pv=pv,
+            mate_in=mate_in
         )
     except Exception as e:
         print(f"Error: {e}")
@@ -205,7 +208,7 @@ async def analyze_game(request: AnalyzeRequest):
         
         # We need the pre-move evaluation of the very first position
         info_before = await engine.analyse(board, limit)
-        current_score = get_normalized_score(info_before)
+        current_score, _ = get_normalized_score(info_before)
 
         # To track accuracy
         total_cpl = 0
@@ -234,7 +237,7 @@ async def analyze_game(request: AnalyzeRequest):
             
             # Get eval AFTER move
             info_after = await engine.analyse(board, limit)
-            score_after = get_normalized_score(info_after)
+            score_after, _ = get_normalized_score(info_after)
             
             # Update current score for next iteration
             current_score = score_after

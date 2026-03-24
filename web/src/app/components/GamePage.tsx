@@ -98,11 +98,11 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
   const evalLabel = (() => {
     if (stats.mateIn !== null) {
-      const m = stats.mateIn;
-      if (m < 0) return `M${Math.abs(m)}`;
-      else return `-M${m}`;
+      const playerMate = stats.mateIn * (playerColor === "white" ? 1 : -1);
+      if (playerMate > 0) return `M${playerMate}`;
+      else return `-M${Math.abs(playerMate)}`;
     }
-    return displayScore.toFixed(2);
+    return displayScore > 0 ? `+${displayScore.toFixed(2)}` : displayScore.toFixed(2);
   })();
 
   const [engineError, setEngineError] = useState<string | null>(null);
@@ -161,7 +161,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           setMoveHistory(prev => [...prev, { san: mv!.san, score: String(data.score?.toFixed(2) ?? "?") }]);
           setStats({
             score: data.score ?? 0, depth: data.depth ?? 0, nodes: data.nodes ?? 0, nps: data.nps ?? 0,
-            pv: data.pv ?? "", mateIn: playerColor === "white" ? (data.score > 0 ? -1 : 1) : (data.score > 0 ? 1 : -1)
+            pv: data.pv ?? "", mateIn: data.mate_in ?? null
           });
           setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
