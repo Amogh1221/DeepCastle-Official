@@ -60,6 +60,7 @@ python training/export_nnue.py checkpoints/last.ckpt output.nnue
 ## 📂 Repository Structure
 
 *   `game/`: Contains the playable application (`game.py`), the engine interface (`deepcastle.py`), and the compiled engine (`deepcastle.exe`).
+*   `engine/`: Contains the C++ source code for the `deepcastle.exe` chess engine (based on Official Stockfish). You can generate the `deepcastle.exe` binary by running `engine/build.bat`.
 *   `training/`: Full codebase for NNUE training, including model definitions and data loading scripts.
 *   `requirements.txt`: Python package dependencies.
 

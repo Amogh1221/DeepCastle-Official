@@ -1,0 +1,20 @@
+# Binary Executables
+*.exe
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Benchmarking/Test results
+*.pgn
+*.txt
+*.nnue
+
+# IDE
+.vscode/
+
+# Ignore stockfish binaries in game folder
+game/*.exe
+game/*.pgn
