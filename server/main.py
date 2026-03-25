@@ -212,8 +212,8 @@ async def analyze_game(request: AnalyzeRequest):
         current_score, _ = get_normalized_score(info_before)
 
         # To track accuracy
-        total_cpl = 0
-        player_moves_count = 0
+        total_cpl: float = 0.0
+        player_moves_count: int = 0
         
         counts = {
             "Brilliant": 0, "Great": 0, "Best": 0, 

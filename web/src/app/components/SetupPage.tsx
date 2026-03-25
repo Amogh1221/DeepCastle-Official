@@ -84,7 +84,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
               onClick={() => setVariant("chess960")}
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${variant === "chess960" ? "bg-[#262621] text-rose-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
-              Chess960
+              Fischer Random
             </button>
           </div>
 
@@ -149,8 +149,8 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={`w-full py-4 mt-8 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all border ${mode === "p2p"
-                ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-[0_0_30px_rgba(99,102,241,0.35)] border-indigo-400/30"
-                : "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-[0_0_30px_rgba(16,185,129,0.35)] border-emerald-400/30"
+              ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-[0_0_30px_rgba(99,102,241,0.35)] border-indigo-400/30"
+              : "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-[0_0_30px_rgba(16,185,129,0.35)] border-emerald-400/30"
               }`}
           >
             {mode === "p2p" ? <Users className="w-5 h-5" /> : <Play className="w-5 h-5" />}
