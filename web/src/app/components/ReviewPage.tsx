@@ -141,11 +141,11 @@ export function ReviewPage({
           const data = await res.json();
           if (analysisFenRef.current !== currentFen) return;
           if (data.bestmove?.length >= 4) {
-            setAnalysisArrows([[
-              data.bestmove.slice(0, 2),
-              data.bestmove.slice(2, 4),
-              "rgba(163,209,96,0.85)"
-            ]]);
+            setAnalysisArrows([{
+              startSquare: data.bestmove.slice(0, 2),
+              endSquare: data.bestmove.slice(2, 4),
+              color: "rgba(163,209,96,0.85)"
+            }]);
           }
           const s = data.score;
           setLiveEval(s !== undefined ? (s > 0 ? `+${s.toFixed(2)}` : s.toFixed(2)) : "");
@@ -197,7 +197,11 @@ export function ReviewPage({
   const reviewArrows: any[] = [];
   if (lastMove && currentMove?.classification) {
     const bad = ["Blunder", "Mistake", "Inaccuracy"].includes(currentMove.classification);
-    reviewArrows.push([lastMove.from, lastMove.to, bad ? "rgba(239,68,68,0.75)" : "rgba(16,185,129,0.75)"]);
+    reviewArrows.push({
+      startSquare: lastMove.from,
+      endSquare: lastMove.to,
+      color: bad ? "rgba(239,68,68,0.75)" : "rgba(16,185,129,0.75)"
+    });
   }
 
   const boardArrows = tab === "analysis" ? analysisArrows : reviewArrows;

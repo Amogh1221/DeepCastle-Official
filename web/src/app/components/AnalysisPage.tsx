@@ -70,7 +70,11 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
         if (typeof data.bestmove === "string" && data.bestmove.length >= 4) {
           const bm: string = data.bestmove;
           setBestMove(bm);
-          setBestArrow([[bm.slice(0, 2), bm.slice(2, 4), "rgba(163,209,96,0.85)"]]);
+          setBestArrow([{
+            startSquare: bm.slice(0, 2),
+            endSquare: bm.slice(2, 4),
+            color: "rgba(163,209,96,0.85)"
+          }]);
         } else {
           setBestMove(null);
           setBestArrow([]);
@@ -90,7 +94,11 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   // Hide best move arrow when toggled off
   useEffect(() => {
     if (!showBestMove) setBestArrow([]);
-    else if (bestMove) setBestArrow([[bestMove.slice(0, 2), bestMove.slice(2, 4), "rgba(163,209,96,0.85)"]]);
+    else if (bestMove) setBestArrow([{
+      startSquare: bestMove.slice(0, 2),
+      endSquare: bestMove.slice(2, 4),
+      color: "rgba(163,209,96,0.85)"
+    }]);
   }, [showBestMove]);
 
   // Keyboard nav
