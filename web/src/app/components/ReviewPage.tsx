@@ -16,15 +16,18 @@ const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860
 const CLS_COLOR: Record<string, string> = {
   Brilliant: "#2dd4bf", Best: "#10b981", Excellent: "#4ade80",
   Good: "#a3e635", Inaccuracy: "#fbbf24", Mistake: "#f97316", Blunder: "#ef4444",
+  Book: "#a5f3fc",
 };
 const CLS_BG: Record<string, string> = {
   Brilliant: "rgba(45,212,191,0.12)", Best: "rgba(16,185,129,0.12)",
   Excellent: "rgba(74,222,128,0.12)", Good: "rgba(163,230,53,0.12)",
   Inaccuracy: "rgba(251,191,36,0.12)", Mistake: "rgba(249,115,22,0.12)", Blunder: "rgba(239,68,68,0.12)",
+  Book: "rgba(165,243,252,0.12)",
 };
 const CLS_EMOJI: Record<string, string> = {
   Brilliant: "✦", Best: "★", Excellent: "✓", Good: "·",
   Inaccuracy: "?", Mistake: "?!", Blunder: "??",
+  Book: "📖",
 };
 
 function clsBadge(cls: string) {
@@ -289,7 +292,7 @@ export function ReviewPage({
                       }}
                     >
                       <img
-                        src={`/icons/${currentMove.classification.toLowerCase()}.png`}
+                        src={`/icons/${currentMove.classification === "Book" ? "opening" : currentMove.classification.toLowerCase()}.png`}
                         alt={currentMove.classification}
                         className="absolute -top-2.5 -right-2.5 w-6 h-6 drop-shadow-md z-[100]"
                       />
@@ -393,11 +396,19 @@ export function ReviewPage({
                       <span className="text-slate-400 text-xs w-8 shrink-0">
                         {Math.ceil(currentPly / 2)}{currentPly % 2 !== 0 ? "." : "…"}
                       </span>
-                      <span className="font-black text-white text-sm">{currentMove.san}</span>
-                      {clsBadge(currentMove.classification)}
-                      <span className="text-xs text-slate-500 ml-auto">
-                        CPL {Math.round(currentMove.cpl)}
-                      </span>
+                      <div className="flex flex-col gap-1.5 px-1 py-1">
+                      <div className="flex items-center gap-2">
+                        {clsBadge(currentMove.classification)}
+                        <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
+                        <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
+                      </div>
+                      {currentMove.opening && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
+                          <BookOpen className="w-3 h-3 text-indigo-400" />
+                          <span className="text-[10px] font-bold text-indigo-300 truncate">{currentMove.opening}</span>
+                        </div>
+                      )}
+                    </div>
                     </div>
                   ) : (
                     <span className="text-slate-500 text-xs">

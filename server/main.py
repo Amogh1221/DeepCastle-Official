@@ -86,19 +86,20 @@ class MoveResponse(BaseModel):
     nps: int
     pv: str
     mate_in: Optional[int] = None
+    opening: Optional[str] = None
 
-# ─── New Analysis Types ────────────────────────────────────────────────────────
 class AnalyzeRequest(BaseModel):
-    moves: List[str]             # e.g., ["e4", "e5", "Nf3", "Nc6", ...]
-    time_per_move: float = 0.1   # quick eval per move
+    moves: List[str]
+    time_per_move: float = 0.1
     player_color: str = "white"
     start_fen: Optional[str] = None
 
 class MoveAnalysis(BaseModel):
     move_num: int
     san: str
-    fen: str
-    classification: str          # Best, Excellent, Good, Inaccuracy, Mistake, Blunder, Brilliant
+    best_move: str
+    classification: str
+    opening: Optional[str] = None
     cpl: float
     score_before: float
     score_after: float
@@ -176,6 +177,10 @@ async def get_move(request: MoveRequest):
         # Map mate score to pawns representation to not break old UI
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
 
+        # Check for opening name
+        board_fen_only = board.fen().split(" ")[0]
+        opening_name = openings_db.get(board_fen_only)
+
         return MoveResponse(
             bestmove=result.move.uci(),
             score=score_pawns,
@@ -183,7 +188,8 @@ async def get_move(request: MoveRequest):
             nodes=nodes,
             nps=nps,
             pv=pv,
-            mate_in=mate_in
+            mate_in=mate_in,
+            opening=opening_name
         )
     except Exception as e:
         print(f"Error: {e}")
@@ -306,9 +312,9 @@ def get_move_classification(
     is_white_move: bool,
     played_move: chess.Move,
     best_move_before: chess.Move,
-    alt_win_pct: float,
-    fen_two_moves_ago: str,
-    uci_next_two_moves: tuple,
+    alt_win_pct: Optional[float],
+    fen_two_moves_ago: Optional[str],
+    uci_next_two_moves: Optional[Tuple[chess.Move, chess.Move]],
     board_before_move: chess.Board,
     best_pv_after: list
 ) -> str:
@@ -375,13 +381,15 @@ async def analyze_game(request: AnalyzeRequest):
             except Exception:
                 break # Invalid move
 
-            info_before = infos_before[0]
-            win_pct_before = get_win_percentage(info_before)
-            best_pv_before = info_before.get("pv", [])
-            best_move_before = best_pv_before[0] if best_pv_before else None
+            info_dict = infos_before[0]
+            pv_list = info_dict.get("pv", [])
+            best_move_before = pv_list[0] if pv_list else None
             
-            alt_win_pct_before = None
+            score_before, _ = get_normalized_score(info_dict)
+            win_pct_before = get_win_percentage(info_dict)
+            alt_win_pct_before: Optional[float] = None
             if len(infos_before) > 1:
+                # Find the first alternative move that is not the played move
                 for line in infos_before:
                     if line.get("pv") and line.get("pv")[0] != move:
                         alt_win_pct_before = get_win_percentage(line)
@@ -393,15 +401,16 @@ async def analyze_game(request: AnalyzeRequest):
             move_history.append(move)
             fen_history.append(board.fen())
             
-            infos_after = await engine.analyse(board, limit, multipv=2)
-            infos_after = infos_after if isinstance(infos_after, list) else [infos_after]
-            info_after = infos_after[0]
+            infos_after_raw = await engine.analyse(board, limit, multipv=2)
+            infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
             
-            win_pct_after = get_win_percentage(info_after)
-            score_after, _ = get_normalized_score(info_after)
+            info_after_dict: dict = infos_after[0]
+            
+            win_pct_after = get_win_percentage(info_after_dict)
+            score_after, _ = get_normalized_score(info_after_dict)
             current_score = score_after
             
-            best_pv_after = info_after.get("pv", [])
+            best_pv_after = info_after_dict.get("pv", [])
             
             fen_two_moves_ago = None
             uci_next_two_moves = None
@@ -410,10 +419,11 @@ async def analyze_game(request: AnalyzeRequest):
                 uci_next_two_moves = (move_history[-2], move_history[-1])
 
             cls = "Book"
+            opening_name = None
             board_fen_only = board.fen().split(" ")[0]
             if board_fen_only in openings_db:
-                # Intercept with exact chesskit Book classification logic
                 cls = "Book"
+                opening_name = openings_db[board_fen_only]
             else:
                 cls = get_move_classification(
                     last_win_pct=win_pct_before,
@@ -442,9 +452,11 @@ async def analyze_game(request: AnalyzeRequest):
                 san=san_move,
                 fen=board.fen(),
                 classification=cls,
-                cpl=cpl,
-                score_before=score_before / 100.0,
-                score_after=score_after / 100.0
+                cpl=float(cpl),
+                score_before=float(score_before / 100.0),
+                score_after=float(score_after / 100.0),
+                best_move=best_move_before.uci() if best_move_before else "",
+                opening=opening_name
             ))
             
             infos_before = infos_after

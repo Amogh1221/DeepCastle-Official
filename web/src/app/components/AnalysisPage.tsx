@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
-import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, Trash2 } from "lucide-react";
+import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, Trash2, BookOpen } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
@@ -32,6 +32,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   const [bestArrow, setBestArrow] = useState<any[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showBestMove, setShowBestMove] = useState(true);
+  const [openingName, setOpeningName] = useState<string>("");
   const abortRef = useRef<AbortController | null>(null);
   const isMounted = useRef(true);
 
@@ -51,6 +52,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
     setIsAnalyzing(true);
     setLiveEval("...");
     setBestArrow([]);
+    setOpeningName(""); // Clear opening name on new analysis
 
     let done = false;
     fetch(`${API_URL}/move`, {
@@ -67,6 +69,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
           ? (s > 0 ? `+${Number(s).toFixed(2)}` : Number(s).toFixed(2))
           : "0.00";
         setLiveEval(evalStr);
+        setOpeningName(data.opening || "");
         if (typeof data.bestmove === "string" && data.bestmove.length >= 4) {
           const bm: string = data.bestmove;
           setBestMove(bm);
@@ -99,7 +102,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       endSquare: bestMove.slice(2, 4),
       color: "rgba(163,209,96,0.85)"
     }]);
-  }, [showBestMove]);
+  }, [showBestMove, bestMove]); // Added bestMove to dependency array
 
   // Keyboard nav
   useEffect(() => {
@@ -178,6 +181,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       setFenInput("");
       setBestMove(null);
       setBestArrow([]);
+      setOpeningName("");
     } catch {
       setFenError("Invalid FEN string");
     }
@@ -193,6 +197,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
     setFenError("");
     setBestMove(null);
     setBestArrow([]);
+    setOpeningName("");
   }
 
   const evalNum = parseFloat(liveEval.replace("...", "0").replace("?", "0") || "0");
@@ -273,13 +278,23 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
               </button>
             </div>
 
-            {/* Best move */}
-            {bestMove && (
-              <div className="px-5 py-3 border-b border-white/5 shrink-0 bg-indigo-500/5">
-                <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Suggested</p>
-                <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">{bestMove}</p>
-              </div>
-            )}
+            {/* Best move / Opening */}
+          {(bestMove || openingName) && (
+            <div className="px-5 py-3 border-b border-white/5 shrink-0 bg-indigo-500/5 flex flex-col gap-2">
+              {bestMove && (
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Suggested</p>
+                  <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">{bestMove}</p>
+                </div>
+              )}
+              {openingName && (
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-indigo-300 line-clamp-1">{openingName}</span>
+                </div>
+              )}
+            </div>
+          )}
 
             {/* FEN input */}
             <div className="px-5 py-4 border-b border-white/5 shrink-0">

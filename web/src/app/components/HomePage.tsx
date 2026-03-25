@@ -244,26 +244,6 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           transition={{ delay: 0.6 }}
           className="flex flex-col items-center gap-3 pb-8"
         >
-          <div className="flex flex-wrap gap-3 justify-center">
-            <motion.button
-              onClick={onPlay}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-3 px-6 sm:px-8 py-3 bg-[#1e1e24] hover:bg-[#252530] border border-emerald-500/30 rounded-xl font-bold text-slate-200 transition-all text-sm sm:text-base"
-            >
-              <Play className="w-4 h-4 text-emerald-400" />
-              Play DeepCastle
-            </motion.button>
-            <motion.button
-              onClick={onAnalyze}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-3 px-6 sm:px-8 py-3 bg-[#1a1a24] hover:bg-[#22223a] border border-indigo-500/30 rounded-xl font-bold text-indigo-300 transition-all text-sm sm:text-base"
-            >
-              <BarChart2 className="w-4 h-4" />
-              Analyze with DeepCastle
-            </motion.button>
-          </div>
           <p className="text-xs text-slate-700">No account needed · Play directly in browser</p>
         </motion.div>
       </div>
