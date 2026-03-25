@@ -51,8 +51,8 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
     {
       icon: <Shield className="w-6 h-6" />,
       label: "Evaluation",
-      value: "HalfKAv2-HM",
-      sub: "King-relative feature set",
+      value: "HalfKP",
+      sub: "20,480-dim feature set",
       color: "from-rose-500 to-red-600",
     },
   ];
@@ -132,7 +132,7 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
           </h1>
           <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed mb-8 sm:mb-10 px-2 sm:px-0">
             A custom-built NNUE chess engine — trained on 100M+ Stockfish self-play positions at depth 9,
-            powered by alpha-beta search and a halfKAv2-HM neural network.
+            powered by alpha-beta search and a HalfKP neural network.
           </p>
 
           <motion.button
