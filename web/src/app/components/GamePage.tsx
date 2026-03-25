@@ -437,7 +437,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
 
   return (
-    <main className="min-h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-4">
+    <main className="h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-2 overflow-hidden">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-5" />
       </div>
@@ -500,7 +500,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         )}
       </AnimatePresence>
 
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-10 gap-6 relative z-10">
+      <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-10 gap-3 relative z-10">
 
         {/* ── LEFT : BOARD ── */}
         <div className="lg:col-span-6 flex flex-col gap-4">

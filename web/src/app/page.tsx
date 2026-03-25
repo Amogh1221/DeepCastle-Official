@@ -7,6 +7,7 @@ import { HomePage } from "./components/HomePage";
 import { SetupPage } from "./components/SetupPage";
 import { GamePage } from "./components/GamePage";
 import { ReviewPage } from "./components/ReviewPage";
+import { AnalysisPage } from "./components/AnalysisPage";
 import { GameSettings, AppPage } from "./types";
 
 // ─── Root App ──────────────────────────────────────────────────────────────────
@@ -129,13 +130,14 @@ export default function App() {
   function handleHome() { setPage("home"); setShareLink(null); }
   function handleRematch() { setPage("setup"); setShareLink(null); }
   function handleReview(moves: string[]) { setReviewMoves(moves); setPage("review"); setShareLink(null); }
+  function handleAnalysis() { setPage("analysis"); }
 
   return (
     <div className="relative">
       <AnimatePresence mode="wait">
         {page === "home" && (
           <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <HomePage onPlay={handlePlay} />
+            <HomePage onPlay={handlePlay} onAnalyze={handleAnalysis} />
           </motion.div>
         )}
         {page === "setup" && (
@@ -151,6 +153,11 @@ export default function App() {
         {page === "review" && (
           <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <ReviewPage settings={settings} moves={reviewMoves} onHome={handleHome} />
+          </motion.div>
+        )}
+        {page === "analysis" && (
+          <motion.div key="analysis" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <AnalysisPage onHome={handleHome} />
           </motion.div>
         )}
       </AnimatePresence>

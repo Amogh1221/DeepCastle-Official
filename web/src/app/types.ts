@@ -1,5 +1,5 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
-type AppPage = "home" | "setup" | "game" | "review" | "lobby";
+type AppPage = "home" | "setup" | "game" | "review" | "lobby" | "analysis";
 type PlayerColor = "white" | "black";
 type GameMode = "ai" | "p2p";
 

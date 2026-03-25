@@ -74,6 +74,11 @@ export function ReviewPage({
 
   // Run full-game analysis
   useEffect(() => {
+    if (!moves || moves.length === 0) {
+      setError("No moves to analyze. Play a full game first!");
+      setLoading(false);
+      return;
+    }
     async function run() {
       try {
         const res = await fetch(`${API_URL}/analyze-game`, {
@@ -86,10 +91,13 @@ export function ReviewPage({
             start_fen: settings.startFen,
           }),
         });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server error ${res.status}: ${text.slice(0, 100)}`);
+        }
         setAnalysis(await res.json());
       } catch (e: any) {
-        setError(e.message || "Analysis failed");
+        setError(e.message || "Analysis failed. Make sure the engine is running.");
       } finally {
         setLoading(false);
       }

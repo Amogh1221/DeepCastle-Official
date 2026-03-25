@@ -11,7 +11,7 @@ import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } fr
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
-export function HomePage({ onPlay }: { onPlay: () => void }) {
+export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze: () => void }) {
   const specs = [
     {
       icon: <Brain className="w-6 h-6" />,
@@ -135,17 +135,29 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
             powered by alpha-beta search and a HalfKP neural network.
           </p>
 
-          <motion.button
-            id="play-btn"
-            onClick={onPlay}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            className="group relative flex items-center gap-3 px-8 sm:px-10 py-3 sm:py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 rounded-2xl font-black text-base sm:text-lg shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all duration-200 border border-emerald-400/30"
-          >
-            <Play className="w-5 h-5 flex-shrink-0" />
-            Play DeepCastle
-            <div className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </motion.button>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <motion.button
+              id="play-btn"
+              onClick={onPlay}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              className="group relative flex items-center gap-3 px-8 sm:px-10 py-3 sm:py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 rounded-2xl font-black text-base sm:text-lg shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all duration-200 border border-emerald-400/30"
+            >
+              <Play className="w-5 h-5 flex-shrink-0" />
+              Play DeepCastle
+              <div className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </motion.button>
+            <motion.button
+              id="analyze-btn"
+              onClick={onAnalyze}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              className="group relative flex items-center gap-3 px-8 sm:px-10 py-3 sm:py-4 bg-[#1a1a24] hover:bg-[#22223a] rounded-2xl font-black text-base sm:text-lg border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 transition-all duration-200 shadow-[0_0_30px_rgba(99,102,241,0.1)]"
+            >
+              <BarChart2 className="w-5 h-5 flex-shrink-0" />
+              Analyze with DeepCastle
+            </motion.button>
+          </div>
         </motion.div>
 
         {/* ── Spec Cards ── */}
@@ -232,15 +244,26 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
           transition={{ delay: 0.6 }}
           className="flex flex-col items-center gap-3 pb-8"
         >
-          <motion.button
-            onClick={onPlay}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-3 px-6 sm:px-8 py-3 bg-[#1e1e24] hover:bg-[#252530] border border-emerald-500/30 rounded-xl font-bold text-slate-200 transition-all text-sm sm:text-base"
-          >
-            <Play className="w-4 h-4 text-emerald-400" />
-            Challenge DeepCastle Now
-          </motion.button>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <motion.button
+              onClick={onPlay}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-3 px-6 sm:px-8 py-3 bg-[#1e1e24] hover:bg-[#252530] border border-emerald-500/30 rounded-xl font-bold text-slate-200 transition-all text-sm sm:text-base"
+            >
+              <Play className="w-4 h-4 text-emerald-400" />
+              Play DeepCastle
+            </motion.button>
+            <motion.button
+              onClick={onAnalyze}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-3 px-6 sm:px-8 py-3 bg-[#1a1a24] hover:bg-[#22223a] border border-indigo-500/30 rounded-xl font-bold text-indigo-300 transition-all text-sm sm:text-base"
+            >
+              <BarChart2 className="w-4 h-4" />
+              Analyze with DeepCastle
+            </motion.button>
+          </div>
           <p className="text-xs text-slate-700">No account needed · Play directly in browser</p>
         </motion.div>
       </div>
