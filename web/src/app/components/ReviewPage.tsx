@@ -204,7 +204,7 @@ export function ReviewPage({
 
   // ── Render ─────────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-center p-3 overflow-hidden">
+    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-center p-3">
 
       {/* LOADING */}
       {loading && (

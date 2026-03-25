@@ -192,7 +192,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   const evalBarWhite = Math.max(5, Math.min(95, 50 + evalNum * 5));
 
   return (
-    <main className="h-screen bg-[#111113] text-slate-100 flex flex-col overflow-hidden">
+    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col pt-0">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-[#161618] shrink-0">
         <button onClick={onHome} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-bold">
