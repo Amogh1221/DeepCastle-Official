@@ -38,7 +38,8 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
           body: JSON.stringify({
             moves,
             time_per_move: 0.1,
-            player_color: settings.playerColor
+            player_color: settings.playerColor,
+            start_fen: settings.startFen
           })
         });
         if(!res.ok) throw new Error("Analysis failed");

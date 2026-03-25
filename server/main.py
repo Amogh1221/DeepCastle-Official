@@ -92,6 +92,7 @@ class AnalyzeRequest(BaseModel):
     moves: List[str]             # e.g., ["e4", "e5", "Nf3", "Nc6", ...]
     time_per_move: float = 0.1   # quick eval per move
     player_color: str = "white"
+    start_fen: Optional[str] = None
 
 class MoveAnalysis(BaseModel):
     move_num: int
@@ -201,7 +202,7 @@ async def analyze_game(request: AnalyzeRequest):
     engine = None
     try:
         engine = await get_engine()
-        board = chess.Board()
+        board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
         limit = chess.engine.Limit(time=request.time_per_move)
         
         analysis_results = []

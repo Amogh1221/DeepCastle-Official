@@ -11,6 +11,40 @@ import { GameSettings, AppPage } from "./types";
 
 // ─── Root App ──────────────────────────────────────────────────────────────────
 
+function generateChess960Fen() {
+  const pieces = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+  
+  // 1. Place bishops on opposite colors
+  let b1 = Math.floor(Math.random() * 4) * 2; // 0, 2, 4, 6
+  let b2 = Math.floor(Math.random() * 4) * 2 + 1; // 1, 3, 5, 7
+  
+  const line = new Array(8).fill(null);
+  line[b1] = 'b';
+  line[b2] = 'b';
+  
+  // 2. Place queen
+  let q;
+  do { q = Math.floor(Math.random() * 8); } while (line[q] !== null);
+  line[q] = 'q';
+  
+  // 3. Place knights
+  for (let i = 0; i < 2; i++) {
+    let n;
+    do { n = Math.floor(Math.random() * 8); } while (line[n] !== null);
+    line[n] = 'n';
+  }
+  
+  // 4. Place R K R in remaining slots
+  const remaining = [];
+  for (let i = 0; i < 8; i++) { if (line[i] === null) remaining.push(i); }
+  line[remaining[0]] = 'r';
+  line[remaining[1]] = 'k';
+  line[remaining[2]] = 'r';
+  
+  const backline = line.join('');
+  return `${backline}/pppppppp/8/8/8/8/PPPPPPPP/${backline.toUpperCase()} w KQkq - 0 1`;
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>("home");
   const [settings, setSettings] = useState<GameSettings>({
@@ -37,31 +71,26 @@ export default function App() {
   function handleBack() { setPage("home"); }
 
   function handleStart(s: GameSettings) {
+    let finalSettings = { ...s };
+    
+    // Generate FEN for Chess960 if needed
+    if (s.variant === "chess960" && !s.startFen) {
+      finalSettings.startFen = generateChess960Fen();
+    }
+
     if (s.mode === "p2p" && !s.matchId) {
-      // Generate a match ID and go straight to GamePage (host waits)
       const mid = Math.random().toString(36).substring(2, 9);
-      const hostColor = s.playerColor; // "white" | "black"
-      
-      // For Chess960, we generate the starting position once on the host side
-      let finalSettings = { ...s, matchId: mid };
-      if (s.variant === "chess960") {
-         const g = new Chess();
-         // Generate random 960 position (simplified here for demo, 
-         // in a real app better to use a dedicated seed or util)
-         // but chess.js doesn't have a direct 'random960' generator easy.
-         // For now, let's keep it standard or assume we will fetch from server.
-         // Actually, let's just use the Chess960 logic later.
-      }
+      finalSettings.matchId = mid;
       
       setSettings(finalSettings);
       setPage("game");
-      // After a tick, set the share link so it appears on top of GamePage
+      
       if (typeof window !== "undefined") {
-        const link = `${window.location.origin}?match=${mid}&hc=${hostColor}&v=${s.variant}`;
+        const link = `${window.location.origin}?match=${mid}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}`;
         setShareLink(link);
       }
     } else {
-      setSettings(s);
+      setSettings(finalSettings);
       setPage("game");
     }
   }
@@ -75,16 +104,18 @@ export default function App() {
 
   function acceptChallenge() {
     if (incomingChallenge) {
-      // Read host's color from URL param; joiner gets the opposite
       const params = new URLSearchParams(window.location.search);
       const hostColor = params.get("hc") as "white" | "black" | null;
       const joinerColor: "white" | "black" = hostColor === "white" ? "black" : "white";
       const variant = (params.get("v") || "standard") as "standard" | "chess960";
+      const fen = params.get("fen");
+      
       setSettings({
         playerColor: joinerColor,
         thinkTime: 1.0,
         mode: "p2p",
         variant,
+        startFen: fen || undefined,
         matchSettings: { timeLimit: 0, increment: 0 },
         matchId: incomingChallenge,
         isJoiner: true
@@ -124,99 +155,111 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ── Share Link Popup (host, floats above GamePage) ── */}
+      {/* CHALLENGE OVERLAY */}
       <AnimatePresence>
-        {shareLink && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        {incomingChallenge && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-full max-w-sm px-4"
           >
-            <div className="bg-[#1a1a1f] border-2 border-indigo-500/40 rounded-3xl p-8 max-w-md w-full shadow-[0_30px_80px_rgba(0,0,0,0.8)]">
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-black text-white mb-1">Challenge Ready! 🎯</h2>
-                  <p className="text-sm text-slate-400">Share this link with your friend to start the game.</p>
-                </div>
-                <button
-                  onClick={() => setShareLink(null)}
-                  className="text-slate-600 hover:text-slate-300 transition-colors p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="bg-black/50 rounded-xl border border-white/5 p-4 flex items-center gap-3 mb-6">
-                <span className="flex-1 text-xs text-slate-300 font-mono truncate">{shareLink}</span>
-                <button
-                  onClick={copyShareLink}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-black text-white transition-all flex-shrink-0"
-                >
-                  {copiedShare ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copiedShare ? "Copied!" : "Copy"}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-                <div className="w-8 h-8 bg-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Users className="w-4 h-4 text-amber-400 animate-pulse" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-amber-300">Waiting for opponent…</p>
-                  <p className="text-xs text-amber-500/70">Game will start automatically when they join</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShareLink(null)}
-                className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold text-slate-400 border border-white/5 transition-all"
-              >
-                Dismiss — continue waiting
-              </button>
+            <div className="bg-[#1a1a1f] border border-indigo-500/30 rounded-2xl p-6 shadow-2xl backdrop-blur-xl">
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
+                     <Users className="w-6 h-6 text-indigo-400" />
+                  </div>
+                  <div>
+                     <h3 className="font-black text-white">Join Challenge</h3>
+                     <p className="text-xs text-slate-500">Someone invited you to play!</p>
+                  </div>
+               </div>
+               <div className="flex gap-3">
+                  <button onClick={acceptChallenge} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all">
+                     ACCEPT
+                  </button>
+                  <button onClick={() => setIncomingChallenge(null)} className="px-5 py-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl font-bold text-sm transition-all">
+                     <X className="w-5 h-5" />
+                  </button>
+               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Incoming Challenge Popup (opponent) ── */}
+      {/* SHARE LINK OVERLAY */}
       <AnimatePresence>
-        {incomingChallenge && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+        {shareLink && page === "game" && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
           >
-            <motion.div
-              initial={{ scale: 0.85, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.85, y: 30 }}
-              className="bg-[#1a1a1f] border-2 border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full shadow-[0_30px_80px_rgba(0,0,0,0.8)] text-center"
-            >
-              <div className="w-20 h-20 bg-emerald-600/20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-emerald-500/20">
-                <Users className="w-10 h-10 text-emerald-400" />
-              </div>
-              <h2 className="text-2xl font-black text-white mb-2">Challenge Received! ⚔️</h2>
-              <p className="text-sm text-slate-400 mb-8">Someone wants to battle you on DeepCastle. Do you accept?</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setIncomingChallenge(null); window.history.replaceState({}, "", window.location.pathname); }}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 border border-white/5 transition-all"
-                >
-                  Decline
-                </button>
-                <button
-                  onClick={acceptChallenge}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-black text-white shadow-lg transition-all"
-                >
-                  Accept!
-                </button>
-              </div>
-            </motion.div>
+            <div className="bg-[#1a1a1f] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <Share2 className="w-32 h-32 rotate-12" />
+               </div>
+               
+               <button onClick={() => setShareLink(null)} className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-500" />
+               </button>
+
+               <div className="text-center mb-8 relative z-10">
+                  <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 mx-auto mb-4">
+                     <Users className="w-8 h-8 text-indigo-400" />
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-2">Challenge Created!</h3>
+                  <p className="text-slate-400 text-sm">Send this link to your friend to start the game.</p>
+               </div>
+
+               <div className="relative mb-6">
+                  <input 
+                     readOnly 
+                     value={shareLink}
+                     className="w-full bg-black/40 border border-white/5 rounded-xl py-4 pl-4 pr-12 text-sm text-slate-300 font-mono focus:outline-none"
+                  />
+                  <button 
+                     onClick={copyShareLink}
+                     className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all"
+                  >
+                     {copiedShare ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+               </div>
+
+               <button 
+                  onClick={() => setShareLink(null)}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all border border-white/5"
+               >
+                  I'm ready, let's wait
+               </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function Share2(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
   );
 }
