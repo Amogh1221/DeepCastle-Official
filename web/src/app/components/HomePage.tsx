@@ -213,9 +213,6 @@ export function HomePage({ onPlay }: { onPlay: () => void }) {
                           : 'text-slate-400 bg-slate-400/10 border-slate-400/20'
                       }`}>{t.version}</span>
                       <span className="font-bold text-xs sm:text-sm text-white">{t.label}</span>
-                      {t.elo !== 'N/A' && (
-                        <span className="ml-auto text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">~{t.elo} Elo</span>
-                      )}
                       {t.elo === 'N/A' && (
                         <span className="ml-auto text-[10px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded border border-red-400/20">Broken</span>
                       )}
