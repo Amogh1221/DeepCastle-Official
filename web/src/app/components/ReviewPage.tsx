@@ -183,14 +183,7 @@ export function ReviewPage({
     squareStyles[lastMove.to] = { backgroundColor: "rgba(255,255,0,0.35)" };
   }
   if (currentMove?.classification && lastMove) {
-    const cls = currentMove.classification;
-    squareStyles[lastMove.to] = {
-      ...squareStyles[lastMove.to],
-      backgroundImage: `url(/icons/${cls.toLowerCase()}.png)`,
-      backgroundRepeat: "no-repeat",
-      backgroundPosition: "top right",
-      backgroundSize: "36%",
-    };
+    // Icon is now rendered as an absolute overlay on the board div instead of a square background
   }
 
   // Arrows
@@ -266,7 +259,7 @@ export function ReviewPage({
               </div>
 
               {/* Board */}
-              <div className="flex-1 aspect-square">
+              <div className="flex-1 aspect-square relative">
                 <Chessboard options={{
                   position: currentFen,
                   boardOrientation: flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor,
@@ -277,6 +270,32 @@ export function ReviewPage({
                   squareStyles,
                   arrows: boardArrows,
                 }} />
+
+                {/* Classification Overlay on Top of Pieces */}
+                {currentMove?.classification && lastMove && tab !== "analysis" && (() => {
+                  const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
+                  const file = lastMove.to.charCodeAt(0) - 97;
+                  const rank = parseInt(lastMove.to[1]) - 1;
+                  const x = orientation === "white" ? file : 7 - file;
+                  const y = orientation === "white" ? 7 - rank : rank;
+                  return (
+                    <div
+                      className="absolute z-50 pointer-events-none"
+                      style={{
+                        width: "12.5%",
+                        height: "12.5%",
+                        left: `${x * 12.5}%`,
+                        top: `${y * 12.5}%`,
+                      }}
+                    >
+                      <img
+                        src={`/icons/${currentMove.classification.toLowerCase()}.png`}
+                        alt={currentMove.classification}
+                        className="absolute -top-2.5 -right-2.5 w-6 h-6 drop-shadow-md z-[100]"
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
