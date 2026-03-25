@@ -26,10 +26,15 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   const gameRef = useRef(new Chess());
   const [moveHistory, setMoveHistory] = useState<{ san: string; score: string }[]>([]);
   const [stats, setStats] = useState<Stats>({ score: 0.0, depth: 0, nodes: 0, nps: 0, pv: "", mateIn: null });
+  const [botStats, setBotStats] = useState<Stats>({ score: 0.0, depth: 0, nodes: 0, nps: 0, pv: "", mateIn: null });
   const [thinking, setThinking] = useState(false);
-  const [isPlayerTurn, setIsPlayerTurn] = useState(playerColor === "white");
+  const [isPlayerTurn, setIsPlayerTurn] = useState(
+    settings.mode === "p2p" ? false : playerColor === "white"
+  );
   const [botMessage, setBotMessage] = useState(
-    playerColor === "white" ? "Let's see what you've got." : "Analyzing the position..."
+    settings.mode === "p2p"
+      ? "Waiting for opponent to join..."
+      : playerColor === "white" ? "Let's see what you've got." : "Analyzing the position..."
   );
   const [showEvalBar, setShowEvalBar] = useState(false);
 
@@ -62,6 +67,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
          if (data.type === "join") {
             setOpponentJoined(true);
             setBotMessage("Opponent is ready! Game ON.");
+            // Now it's safe to let White move
+            if (playerColor === "white") setIsPlayerTurn(true);
          } else if (data.type === "move") {
             applyExternalMove(data.move);
          } else if (data.type === "opponent_disconnected") {
@@ -189,10 +196,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         if (mv) {
           gameRef.current = g; setFen(g.fen());
           setMoveHistory(prev => [...prev, { san: mv!.san, score: String(data.score?.toFixed(2) ?? "?") }]);
-          setStats({
+          // Update bot move stats (separate from eval bar stats)
+          setBotStats({
             score: data.score ?? 0, depth: data.depth ?? 0, nodes: data.nodes ?? 0, nps: data.nps ?? 0,
             pv: data.pv ?? "", mateIn: data.mate_in ?? null
           });
+          // Also sync eval bar score
+          setStats(prev => ({ ...prev, score: data.score ?? prev.score, mateIn: data.mate_in ?? null }));
           setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
         }
@@ -642,19 +652,19 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
                   <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Depth</p>
                   <p className="text-xl font-bold tracking-tighter text-slate-200">
-                    {stats.depth}<span className="text-[10px] ml-1 opacity-40">PLY</span>
+                    {botStats.depth}<span className="text-[10px] ml-1 opacity-40">PLY</span>
                   </p>
                 </div>
                 <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
                   <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Speed</p>
                   <p className="text-xl font-bold tracking-tighter text-indigo-400">
-                    <span>{(stats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
+                    <span>{(botStats.nps / 1000).toFixed(1)}k<span className="text-[10px] ml-1 opacity-40">NPS</span></span>
                   </p>
                 </div>
                 <div className="bg-[#161512] p-3 rounded-lg border border-white/5 flex flex-col justify-center">
                   <p className="text-[9px] uppercase font-black text-slate-600 mb-1">Nodes</p>
                   <p className="text-xl font-bold tracking-tighter text-emerald-400">
-                    <span>{(stats.nodes / 1000).toFixed(1)}k</span>
+                    <span>{(botStats.nodes / 1000).toFixed(1)}k</span>
                   </p>
                 </div>
               </div>
@@ -715,7 +725,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                   <span className="text-[10px] uppercase font-black text-slate-500 group-hover:text-amber-300">
                     Hint
                   </span>
-                  {hintArrow && isPlayerTurn && (
+                  {hintArrow && isPlayerTurn && showHintArrow && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping" />
                   )}
                 </button>

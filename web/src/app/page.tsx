@@ -38,12 +38,13 @@ export default function App() {
     if (s.mode === "p2p" && !s.matchId) {
       // Generate a match ID and go straight to GamePage (host waits)
       const mid = Math.random().toString(36).substring(2, 9);
+      const hostColor = s.playerColor; // "white" | "black"
       const finalSettings = { ...s, matchId: mid };
       setSettings(finalSettings);
       setPage("game");
       // After a tick, set the share link so it appears on top of GamePage
       if (typeof window !== "undefined") {
-        const link = `${window.location.origin}?match=${mid}`;
+        const link = `${window.location.origin}?match=${mid}&hc=${hostColor}`;
         setShareLink(link);
       }
     } else {
@@ -61,8 +62,12 @@ export default function App() {
 
   function acceptChallenge() {
     if (incomingChallenge) {
+      // Read host's color from URL param; joiner gets the opposite
+      const params = new URLSearchParams(window.location.search);
+      const hostColor = params.get("hc") as "white" | "black" | null;
+      const joinerColor: "white" | "black" = hostColor === "white" ? "black" : "white";
       setSettings({
-        playerColor: "black",
+        playerColor: joinerColor,
         thinkTime: 1.0,
         mode: "p2p",
         matchSettings: { timeLimit: 0, increment: 0 },
