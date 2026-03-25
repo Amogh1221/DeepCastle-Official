@@ -437,7 +437,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
 
   return (
-    <main className="h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-2 overflow-hidden">
+    <main className="min-h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-3">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-5" />
       </div>

@@ -287,7 +287,11 @@ export function ReviewPage({
                 )}
               </div>
               <ResponsiveContainer width="100%" height="80%">
-                <AreaChart data={chartData} onClick={(e: any) => e?.activePayload && setCurrentPly(e.activePayload[0].payload.ply)} style={{ cursor: "pointer" }}>
+                <AreaChart data={chartData} onClick={(e: any) => {
+                  try {
+                    if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
+                  } catch {}
+                }} style={{ cursor: "pointer" }}>
                   <defs>
                     <linearGradient id="evalGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
