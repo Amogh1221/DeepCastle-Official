@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import {
   Cpu, RefreshCw, TrendingUp, Flag, RotateCcw, Lightbulb, ChevronRight, Eye, EyeOff, Play, Clock, Zap, Brain, Shield, GitBranch, Database, Trophy, ChevronLeft, X, Crown, Activity, Target, BarChart2, BookOpen, Users, Share2, Copy, Check, Hash, MessageSquare, PlayCircle
 } from "lucide-react";
@@ -59,6 +60,18 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
       ? analysis.moves.find((m: any) => m.fen.split(" ")[0] === currentFen.split(" ")[0] || m.san === moves[currentPly-1]) 
       : null;
 
+  // Prepare chart data (0 being opening position, 0 score)
+  const chartData = analysis ? [{ move_num: 0, score: 0 }, ...analysis.moves.map((m: any) => ({
+    move_num: m.move_num,
+    score: settings.playerColor === "white" ? m.score_after : -m.score_after, // Chart goes up when player is winning
+  }))] : [];
+
+  const handleChartClick = (e: any) => {
+    if (e && e.activePayload && e.activePayload.length > 0) {
+      setCurrentPly(e.activePayload[0].payload.move_num);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-4">
        {loading ? (
@@ -84,6 +97,34 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
                        lightSquareStyle: { backgroundColor: "#ebecd0" },
                        boardStyle: { borderRadius: "4px" }
                     }} />
+                 </div>
+
+
+                 {/* EVALUATION GRAPH */}
+                 <div className="w-full h-40 bg-[#1a1a1f] p-4 rounded-xl border border-white/5 shadow-2xl overflow-hidden cursor-pointer">
+                   <h3 className="text-xs uppercase font-black text-slate-500 mb-2 tracking-widest pl-2">Evaluation Graph</h3>
+                   <div className="w-full h-full -ml-4">
+                     <ResponsiveContainer width="100%" height="100%">
+                       <LineChart data={chartData} onClick={handleChartClick}>
+                         <YAxis domain={[-10, 10]} hide />
+                         <Tooltip 
+                           contentStyle={{ backgroundColor: "#262421", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
+                           itemStyle={{ color: "#a7f3d0", fontWeight: 'bold' }}
+                           labelStyle={{ display: "none" }}
+                           formatter={(value: any) => [typeof value === 'number' ? (value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)) : value, "Eval"]}
+                         />
+                         <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
+                         <Line 
+                           type="monotone" 
+                           dataKey="score" 
+                           stroke="#10b981" 
+                           strokeWidth={3}
+                           dot={false}
+                           activeDot={{ r: 6, fill: "#34d399", stroke: "#064e3b", strokeWidth: 2 }}
+                         />
+                       </LineChart>
+                     </ResponsiveContainer>
+                   </div>
                  </div>
               </div>
               

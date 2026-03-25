@@ -223,7 +223,8 @@ async def analyze_game(request: AnalyzeRequest):
         player_is_white = (request.player_color.lower() == "white")
 
         for i, san_move in enumerate(request.moves):
-            is_player_turn = board.turn == chess.WHITE if player_is_white else board.turn == chess.BLACK
+            is_white_turn = board.turn == chess.WHITE
+            is_player_turn = is_white_turn if player_is_white else not is_white_turn
             
             # The current_score is the score BEFORE this move
             score_before = current_score
@@ -242,47 +243,41 @@ async def analyze_game(request: AnalyzeRequest):
             # Update current score for next iteration
             current_score = score_after
             
-            # Only analyze the player's moves
-            if is_player_turn:
-                # Calculate Centipawn Loss (diff between score before and score after)
-                # If player is White, positive score is good. If White drops from +100 to +50 -> CPL = 50.
-                # If player is Black, negative score is good. If Black rises from -100 to -50 -> CPL = 50.
-                if player_is_white:
-                    cpl = max(0, score_before - score_after)
-                else:
-                    cpl = max(0, score_after - score_before)
-                
-                # Cap CPL to 1000 so one massive blunder doesn't utterly ruin the stats
-                cpl = min(cpl, 1000.0)
+            # Calculate Centipawn Loss (diff between score before and score after)
+            cpl = max(0, score_before - score_after) if is_white_turn else max(0, score_after - score_before)
+            cpl = min(cpl, 1000.0)
 
+            # Only track these stats for the requested player
+            if is_player_turn:
                 total_cpl += cpl
                 player_moves_count += 1
-                
-                # Classification mapping
-                if cpl <= 15:
-                    cls = "Best"
-                elif cpl <= 35:
-                    cls = "Excellent"
-                elif cpl <= 75:
-                    cls = "Good"
-                elif cpl <= 150:
-                    cls = "Inaccuracy"
-                elif cpl <= 300:
-                    cls = "Mistake"
-                else:
-                    cls = "Blunder"
-                
+            
+            # Classification mapping
+            if cpl <= 15:
+                cls = "Best"
+            elif cpl <= 35:
+                cls = "Excellent"
+            elif cpl <= 75:
+                cls = "Good"
+            elif cpl <= 150:
+                cls = "Inaccuracy"
+            elif cpl <= 300:
+                cls = "Mistake"
+            else:
+                cls = "Blunder"
+            
+            if is_player_turn:
                 counts[cls] += 1
-                
-                analysis_results.append(MoveAnalysis(
-                    move_num=i+1,
-                    san=san_move,
-                    fen=board.fen(),
-                    classification=cls,
-                    cpl=cpl,
-                    score_before=score_before / 100.0,
-                    score_after=score_after / 100.0
-                ))
+            
+            analysis_results.append(MoveAnalysis(
+                move_num=i+1,
+                san=san_move,
+                fen=board.fen(),
+                classification=cls,
+                cpl=cpl,
+                score_before=score_before / 100.0,
+                score_after=score_after / 100.0
+            ))
 
         # Win probability matching accuracy formula
         # Accuracy = 100 * exp(-0.02 * avg_cpl) smoothed
