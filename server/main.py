@@ -196,9 +196,19 @@ async def get_move(request: MoveRequest):
                 pass
 
 
-# ─── Game Review Route & Move Classification Helpers ─────────────────────────
 import math
+import json
+import os
 from typing import Optional, List, Tuple
+
+openings_db = {}
+openings_path = os.path.join(os.path.dirname(__file__), "openings.json")
+if os.path.exists(openings_path):
+    try:
+        with open(openings_path, "r", encoding="utf-8") as f:
+            openings_db = json.load(f)
+    except Exception as e:
+        pass
 
 def get_win_percentage_from_cp(cp: int) -> float:
     cp_ceiled = max(-1000, min(1000, cp))
@@ -341,7 +351,7 @@ async def analyze_game(request: AnalyzeRequest):
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
         
         counts = {
-            "Brilliant": 0, "Great": 0, "Best": 0, 
+            "Book": 0, "Brilliant": 0, "Great": 0, "Best": 0, 
             "Excellent": 0, "Good": 0, "Inaccuracy": 0, 
             "Mistake": 0, "Blunder": 0
         }
@@ -399,18 +409,24 @@ async def analyze_game(request: AnalyzeRequest):
                 fen_two_moves_ago = fen_history[-3]
                 uci_next_two_moves = (move_history[-2], move_history[-1])
 
-            cls = get_move_classification(
-                last_win_pct=win_pct_before,
-                pos_win_pct=win_pct_after,
-                is_white_move=is_white_turn,
-                played_move=move,
-                best_move_before=best_move_before,
-                alt_win_pct=alt_win_pct_before,
-                fen_two_moves_ago=fen_two_moves_ago,
-                uci_next_two_moves=uci_next_two_moves,
-                board_before_move=board_before_move,
-                best_pv_after=best_pv_after
-            )
+            cls = "Book"
+            board_fen_only = board.fen().split(" ")[0]
+            if board_fen_only in openings_db:
+                # Intercept with exact chesskit Book classification logic
+                cls = "Book"
+            else:
+                cls = get_move_classification(
+                    last_win_pct=win_pct_before,
+                    pos_win_pct=win_pct_after,
+                    is_white_move=is_white_turn,
+                    played_move=move,
+                    best_move_before=best_move_before,
+                    alt_win_pct=alt_win_pct_before,
+                    fen_two_moves_ago=fen_two_moves_ago,
+                    uci_next_two_moves=uci_next_two_moves,
+                    board_before_move=board_before_move,
+                    best_pv_after=best_pv_after
+                )
             
             move_gain = score_after - score_before if is_white_turn else score_before - score_after
             cpl = max(0, -move_gain)

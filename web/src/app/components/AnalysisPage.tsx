@@ -219,140 +219,144 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
         </button>
       </div>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Eval bar */}
-        <div className="w-4 bg-[#1a1a1f] border-r border-white/5 relative overflow-hidden shrink-0">
-          <div className="absolute inset-0 flex flex-col">
-            <div className="bg-[#222] transition-all duration-500" style={{ height: `${100 - evalBarWhite}%` }} />
-            <div className="bg-slate-200 transition-all duration-500" style={{ height: `${evalBarWhite}%` }} />
-          </div>
-        </div>
+      <div className="flex-1 flex justify-center py-4 px-2 overflow-hidden w-full">
+        <div className="w-full max-w-[1100px] flex gap-3 h-full max-h-[820px]">
+          
+          <div className="flex flex-col gap-2" style={{ width: "55%" }}>
+            <div className="flex gap-3 flex-1 min-h-0 justify-end">
+              {/* Eval bar */}
+              <div className="w-5 bg-[#1a1a1f] rounded-lg overflow-hidden border border-white/5 flex flex-col relative shrink-0">
+                <div className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400" style={{ height: `${100 - evalBarWhite}%` }} />
+                <div className="absolute bottom-0 left-0 w-full bg-[#202024]" style={{ height: `${evalBarWhite}%` }} />
+              </div>
 
-        {/* Board */}
-        <div className="flex items-center justify-center bg-[#111113]" style={{ width: "min(calc(100vh - 56px), 62vw)" }}>
-          <div style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: "calc(100vh - 56px)" }}>
-            <Chessboard options={{
-              position: currentFen,
-              boardOrientation: flipped ? "black" : "white",
-              animationDurationInMs: 120,
-              darkSquareStyle: { backgroundColor: "#779556" },
-              lightSquareStyle: { backgroundColor: "#ebecd0" },
-              boardStyle: { borderRadius: "4px", boxShadow: "0 8px 40px rgba(0,0,0,0.6)" },
-              squareStyles,
-              arrows: showBestMove ? bestArrow : [],
-              onSquareClick: handleSquareClick,
-              onPieceDrop: handlePieceDrop,
-              allowDragging: true,
-            }} />
+              {/* Board */}
+              <div className="aspect-square relative flex-shrink-0" style={{ height: "100%", maxHeight: "calc(100vh - 100px)" }}>
+                <Chessboard options={{
+                  position: currentFen,
+                  boardOrientation: flipped ? "black" : "white",
+                  animationDurationInMs: 120,
+                  darkSquareStyle: { backgroundColor: "#779556" },
+                  lightSquareStyle: { backgroundColor: "#ebecd0" },
+                  boardStyle: { borderRadius: "4px", boxShadow: "0 8px 40px rgba(0,0,0,0.6)" },
+                  squareStyles,
+                  arrows: showBestMove ? bestArrow : [],
+                  onSquareClick: handleSquareClick,
+                  onPieceDrop: handlePieceDrop,
+                  allowDragging: true,
+                }} />
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Right panel */}
-        <div className="flex-1 flex flex-col min-h-0 border-l border-white/5 bg-[#161618]">
-          {/* Eval header */}
-          <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`text-2xl font-black tabular-nums ${evalColor}`}>
-                {liveEval}
-              </span>
-              {isAnalyzing && (
-                <div className="flex gap-0.5 items-end">
-                  <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "100ms" }} />
-                  <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "200ms" }} />
+          {/* Right panel */}
+          <div className="flex-1 flex flex-col min-h-0 bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
+            {/* Eval header */}
+            <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center justify-between bg-black/20">
+              <div className="flex items-center gap-2">
+                <span className={`text-2xl font-black tabular-nums ${evalColor}`}>
+                  {liveEval}
+                </span>
+                {isAnalyzing && (
+                  <div className="flex gap-0.5 items-end mb-1">
+                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "100ms" }} />
+                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "200ms" }} />
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowBestMove(v => !v)}
+                className={`text-[10px] uppercase font-black px-3 py-1.5 rounded-lg transition-all ${showBestMove ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" : "text-slate-500 hover:text-slate-300 bg-white/5 border border-white/5"}`}
+              >
+                {showBestMove ? "✓ Best Move" : "Best Move"}
+              </button>
+            </div>
+
+            {/* Best move */}
+            {bestMove && (
+              <div className="px-5 py-3 border-b border-white/5 shrink-0 bg-indigo-500/5">
+                <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Suggested</p>
+                <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">{bestMove}</p>
+              </div>
+            )}
+
+            {/* FEN input */}
+            <div className="px-5 py-4 border-b border-white/5 shrink-0">
+              <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2">Load Position (FEN)</p>
+              <div className="flex gap-2 relative">
+                <input
+                  value={fenInput}
+                  onChange={e => { setFenInput(e.target.value); setFenError(""); }}
+                  onKeyDown={e => e.key === "Enter" && loadFen()}
+                  placeholder="Paste FEN string..."
+                  className="flex-1 min-w-0 bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 font-mono"
+                />
+                <button onClick={loadFen} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white shadow shadow-indigo-500/20 rounded-lg font-black text-xs transition-all shrink-0">
+                  Load
+                </button>
+              </div>
+              {fenError && <p className="text-red-400 text-[10px] font-bold mt-1.5">{fenError}</p>}
+            </div>
+
+            {/* Move list */}
+            <div className="flex-1 flex flex-col min-h-0 bg-black/10">
+              {sans.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-600 text-xs text-center px-6">
+                  <div className="w-12 h-12 rounded-full border border-white/5 flex items-center justify-center bg-white/5 mb-3">
+                    <Zap className="w-5 h-5 opacity-40 text-indigo-400" />
+                  </div>
+                  <p className="font-bold opacity-70">Make a move on the board to begin analysis.</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
+                  {Array.from({ length: Math.ceil(sans.length / 2) }).map((_, i) => {
+                    const wSan = sans[i * 2];
+                    const bSan = sans[i * 2 + 1];
+                    const wIdx = i * 2 + 1;
+                    const bIdx = i * 2 + 2;
+                    return (
+                      <div key={i} className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <span className="text-slate-600 w-8 text-right font-bold shrink-0">{i + 1}.</span>
+                        <button
+                          onClick={() => setCurrentIdx(wIdx)}
+                          className={`flex-1 px-2.5 py-1.5 rounded-md text-left font-bold transition-all ${currentIdx === wIdx ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" : "hover:bg-white/5 hover:text-slate-200"}`}
+                        >{wSan}</button>
+                        {bSan ? (
+                          <button
+                            onClick={() => setCurrentIdx(bIdx)}
+                            className={`flex-1 px-2.5 py-1.5 rounded-md text-left font-bold transition-all ${currentIdx === bIdx ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" : "hover:bg-white/5 hover:text-slate-200"}`}
+                          >{bSan}</button>
+                        ) : (
+                          <div className="flex-1" />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setShowBestMove(v => !v)}
-              className={`text-[10px] font-black px-2 py-1 rounded border transition-all ${showBestMove ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" : "text-slate-500 bg-white/5 border-white/5"}`}
-            >
-              {showBestMove ? "✓ Best Move" : "Best Move"}
-            </button>
-          </div>
 
-          {/* Best move */}
-          {bestMove && (
-            <div className="px-4 py-2 border-b border-white/5 shrink-0">
-              <p className="text-[10px] uppercase text-slate-600 font-black tracking-widest">Best Move</p>
-              <p className="text-sm font-black text-emerald-400 font-mono mt-0.5">{bestMove}</p>
-            </div>
-          )}
-
-          {/* FEN input */}
-          <div className="px-4 py-3 border-b border-white/5 shrink-0">
-            <p className="text-[10px] uppercase text-slate-600 font-black tracking-widest mb-2">Load FEN</p>
-            <div className="flex gap-2">
-              <input
-                value={fenInput}
-                onChange={e => { setFenInput(e.target.value); setFenError(""); }}
-                onKeyDown={e => e.key === "Enter" && loadFen()}
-                placeholder="Paste FEN string..."
-                className="flex-1 min-w-0 bg-black/30 border border-white/5 rounded-lg px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 font-mono"
-              />
-              <button onClick={loadFen} className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 rounded-lg font-black text-xs transition-all shrink-0">
-                Load
+            {/* Nav */}
+            <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 shrink-0 bg-[#161618]">
+              <button onClick={reset} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-all text-red-500 flex items-center justify-center" title="Reset Board">
+                <RotateCcw className="w-4 h-4" />
               </button>
-            </div>
-            {fenError && <p className="text-red-400 text-xs mt-1">{fenError}</p>}
-          </div>
-
-          {/* Move list */}
-          <div className="flex-1 overflow-y-auto px-2 py-1 min-h-0">
-            <p className="text-[10px] uppercase text-slate-600 font-black tracking-widest px-2 py-1">Moves</p>
-            {sans.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-slate-600 text-xs text-center px-4">
-                <Zap className="w-7 h-7 mb-2 opacity-20" />
-                Make a move on the board
+              <div className="flex-1 flex items-center gap-1 bg-black/30 border border-white/5 rounded-lg p-1 shadow-inner">
+                <button onClick={() => setCurrentIdx(0)} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
+                  <ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-2" />
+                </button>
+                <button onClick={() => setCurrentIdx(i => Math.max(0, i - 1))} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center border-l border-white/5">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-slate-500 font-mono px-3 shrink-0">{currentIdx} / {sans.length}</span>
+                <button onClick={() => setCurrentIdx(i => Math.min(fens.length - 1, i + 1))} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center border-r border-white/5">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button onClick={() => setCurrentIdx(fens.length - 1)} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
+                  <ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-2" />
+                </button>
               </div>
-            ) : (
-              <div className="space-y-0.5">
-                {Array.from({ length: Math.ceil(sans.length / 2) }).map((_, i) => {
-                  const wSan = sans[i * 2];
-                  const bSan = sans[i * 2 + 1];
-                  const wIdx = i * 2 + 1; // fens index
-                  const bIdx = i * 2 + 2;
-                  return (
-                    <div key={i} className="flex items-center gap-1 text-xs">
-                      <span className="text-slate-600 w-7 text-right shrink-0">{i + 1}.</span>
-                      <button
-                        onClick={() => setCurrentIdx(wIdx)}
-                        className={`flex-1 px-2 py-1.5 rounded text-left font-bold transition-all ${currentIdx === wIdx ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}
-                      >{wSan}</button>
-                      {bSan ? (
-                        <button
-                          onClick={() => setCurrentIdx(bIdx)}
-                          className={`flex-1 px-2 py-1.5 rounded text-left font-bold transition-all ${currentIdx === bIdx ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}
-                        >{bSan}</button>
-                      ) : (
-                        <div className="flex-1" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Nav */}
-          <div className="flex items-center gap-1 px-2 py-2 border-t border-white/5 shrink-0">
-            <button onClick={reset} className="p-2 hover:bg-red-500/10 rounded-lg transition-all text-slate-500 hover:text-red-400" title="Reset">
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <div className="flex-1 flex items-center gap-1 bg-black/20 rounded-lg p-1">
-              <button onClick={() => setCurrentIdx(0)} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
-                <ChevronLeft className="w-4 h-4" /><ChevronLeft className="w-4 h-4 -ml-2" />
-              </button>
-              <button onClick={() => setCurrentIdx(i => Math.max(0, i - 1))} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-slate-600 font-mono px-2 shrink-0">{currentIdx}/{sans.length}</span>
-              <button onClick={() => setCurrentIdx(i => Math.min(fens.length - 1, i + 1))} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <button onClick={() => setCurrentIdx(fens.length - 1)} className="flex-1 py-1.5 hover:bg-white/5 rounded transition-all text-slate-400 hover:text-white flex items-center justify-center">
-                <ChevronRight className="w-4 h-4" /><ChevronRight className="w-4 h-4 -ml-2" />
-              </button>
             </div>
           </div>
         </div>

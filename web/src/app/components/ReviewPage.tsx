@@ -421,21 +421,11 @@ export function ReviewPage({
                         <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
                           className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
                           <span className="font-bold">{whiteMove}</span>
-                          {whiteAnalysis && (
-                            <span style={{ color: CLS_COLOR[whiteAnalysis.classification] }} className="text-[9px] ml-auto shrink-0 opacity-70">
-                              {CLS_EMOJI[whiteAnalysis.classification]}
-                            </span>
-                          )}
                         </button>
                         <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
                           disabled={!blackMove}
                           className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
                           <span className="font-bold">{blackMove || ""}</span>
-                          {blackAnalysis && (
-                            <span style={{ color: CLS_COLOR[blackAnalysis.classification] }} className="text-[9px] ml-auto shrink-0 opacity-70">
-                              {CLS_EMOJI[blackAnalysis.classification]}
-                            </span>
-                          )}
                         </button>
                       </div>
                     );
