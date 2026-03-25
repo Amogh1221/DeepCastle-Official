@@ -13,6 +13,8 @@ interface GameSettings {
   thinkTime: number; // seconds for AI
   mode: GameMode;
   matchSettings: MatchSettings;
+  variant: "standard" | "chess960";
+  startFen?: string;
   matchId?: string;
   isJoiner?: boolean;
 }

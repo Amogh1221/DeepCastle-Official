@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Users, Copy, Check, X } from "lucide-react";
+import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { HomePage } from "./components/HomePage";
 import { SetupPage } from "./components/SetupPage";
@@ -16,6 +17,7 @@ export default function App() {
     playerColor: "white",
     thinkTime: 2.0,
     mode: "ai",
+    variant: "standard",
     matchSettings: { timeLimit: 0, increment: 0 }
   });
   const [reviewMoves, setReviewMoves] = useState<string[]>([]);
@@ -39,12 +41,23 @@ export default function App() {
       // Generate a match ID and go straight to GamePage (host waits)
       const mid = Math.random().toString(36).substring(2, 9);
       const hostColor = s.playerColor; // "white" | "black"
-      const finalSettings = { ...s, matchId: mid };
+      
+      // For Chess960, we generate the starting position once on the host side
+      let finalSettings = { ...s, matchId: mid };
+      if (s.variant === "chess960") {
+         const g = new Chess();
+         // Generate random 960 position (simplified here for demo, 
+         // in a real app better to use a dedicated seed or util)
+         // but chess.js doesn't have a direct 'random960' generator easy.
+         // For now, let's keep it standard or assume we will fetch from server.
+         // Actually, let's just use the Chess960 logic later.
+      }
+      
       setSettings(finalSettings);
       setPage("game");
       // After a tick, set the share link so it appears on top of GamePage
       if (typeof window !== "undefined") {
-        const link = `${window.location.origin}?match=${mid}&hc=${hostColor}`;
+        const link = `${window.location.origin}?match=${mid}&hc=${hostColor}&v=${s.variant}`;
         setShareLink(link);
       }
     } else {
@@ -66,10 +79,12 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const hostColor = params.get("hc") as "white" | "black" | null;
       const joinerColor: "white" | "black" = hostColor === "white" ? "black" : "white";
+      const variant = (params.get("v") || "standard") as "standard" | "chess960";
       setSettings({
         playerColor: joinerColor,
         thinkTime: 1.0,
         mode: "p2p",
+        variant,
         matchSettings: { timeLimit: 0, increment: 0 },
         matchId: incomingChallenge,
         isJoiner: true

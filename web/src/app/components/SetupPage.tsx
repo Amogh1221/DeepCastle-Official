@@ -11,6 +11,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
   const [playerColor, setPlayerColor] = useState<PlayerColor | "random">("white");
   const [thinkTime, setThinkTime] = useState(1.0);
   const [mode, setMode] = useState<GameMode>("ai");
+  const [variant, setVariant] = useState<"standard" | "chess960">("standard");
 
   const engineTimeOptions = [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0];
 
@@ -23,6 +24,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
       playerColor: resolvedColor as PlayerColor,
       thinkTime,
       mode,
+      variant,
       matchSettings: { timeLimit: 0, increment: 0 }
     });
   };
@@ -67,6 +69,22 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "p2p" ? "bg-[#262621] text-indigo-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
               <Users className="w-4 h-4" /> Play vs Friend
+            </button>
+          </div>
+
+          {/* Variant Selection */}
+          <div className="mb-8 p-1 bg-black/40 rounded-2xl flex border border-white/5">
+            <button
+              onClick={() => setVariant("standard")}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${variant === "standard" ? "bg-[#262621] text-amber-400 shadow-xl border border-white/5" : "text-slate-500"}`}
+            >
+              Standard
+            </button>
+            <button
+              onClick={() => setVariant("chess960")}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${variant === "chess960" ? "bg-[#262621] text-rose-400 shadow-xl border border-white/5" : "text-slate-500"}`}
+            >
+              Chess960
             </button>
           </div>
 

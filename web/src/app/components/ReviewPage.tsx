@@ -17,14 +17,16 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
   const [loading, setLoading] = useState(true);
   const [currentPly, setCurrentPly] = useState(0);
   const [error, setError] = useState<string|null>(null);
+  const [flipped, setFlipped] = useState(false);
 
   // Generate board state on the fly
-  const currentFen = React.useMemo(() => {
+  const { fen: currentFen, lastMove } = React.useMemo(() => {
     const g = new Chess();
+    let moveObj: any = null;
     for(let i=0; i<currentPly; i++) {
-        try { g.move(moves[i]); } catch(e) {}
+        try { moveObj = g.move(moves[i]); } catch(e) {}
     }
-    return g.fen();
+    return { fen: g.fen(), lastMove: moveObj };
   }, [moves, currentPly]);
 
   useEffect(() => {
@@ -91,11 +93,38 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
                  <div className="w-full aspect-square bg-[#1a1a1f] p-4 rounded-xl border border-white/5 shadow-2xl">
                     <Chessboard options={{
                        position: currentFen,
-                       boardOrientation: settings.playerColor,
+                       boardOrientation: flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor,
                        animationDurationInMs: 200,
                        darkSquareStyle: { backgroundColor: "#779556" },
                        lightSquareStyle: { backgroundColor: "#ebecd0" },
-                       boardStyle: { borderRadius: "4px" }
+                       boardStyle: { borderRadius: "4px" },
+                       squareStyles: (() => {
+                          const styles: any = {};
+                          if (lastMove) {
+                            styles[lastMove.from] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+                            styles[lastMove.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+                            if (currentMoveAnalysis?.classification) {
+                               const iconName = currentMoveAnalysis.classification.toLowerCase();
+                               styles[lastMove.to] = {
+                                 ...styles[lastMove.to],
+                                 backgroundImage: `url(/icons/${iconName}.png)`,
+                                 backgroundRepeat: 'no-repeat',
+                                 backgroundPosition: 'top right',
+                                 backgroundSize: '40%'
+                               };
+                            }
+                          }
+                          return styles;
+                       })(),
+                       arrows: (() => {
+                          if (lastMove && currentMoveAnalysis?.classification) {
+                              const bad = ["Blunder", "Mistake", "Inaccuracy", "Miss"].includes(currentMoveAnalysis.classification);
+                              return [
+                                 [lastMove.from, lastMove.to, bad ? 'rgba(239, 68, 68, 0.8)' : 'rgba(16, 185, 129, 0.8)'] as any
+                              ];
+                          }
+                          return [];
+                       })()
                     }} />
                  </div>
 
@@ -130,111 +159,104 @@ export function ReviewPage({ settings, moves, onHome }: { settings: GameSettings
               
               {/* STATS AREA + CONTROLS */}
               <div className="lg:col-span-4 flex flex-col gap-4 lg:min-h-[600px]">
-                  <div className="bg-gradient-to-br from-[#1a1a1f] to-[#161619] p-6 rounded-xl border border-emerald-500/20 shadow-2xl flex flex-col flex-1">
-                      <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl font-black flex items-center gap-2 text-emerald-400"><Target className="w-6 h-6"/> Game Review</h2>
-                        <button onClick={onHome} className="p-2 hover:bg-white/5 rounded-lg text-slate-500 hover:text-white transition-colors">
-                           <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                         <div className="bg-black/40 p-4 rounded-xl text-center border border-white/5">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-widest">Accuracy</p>
-                            <p className="text-3xl font-black text-emerald-400">{analysis?.accuracy}%</p>
-                         </div>
-                         <div className="bg-black/40 p-4 rounded-xl text-center border border-white/5">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-widest">Performance</p>
-                            <p className="text-3xl font-black text-amber-400">{analysis?.estimated_elo}</p>
-                         </div>
+                  <div className="bg-[#302e2c] text-slate-200 p-6 rounded-xl border border-white/5 shadow-2xl flex flex-col flex-1 relative custom-scrollbar">
+                      {/* HEADER */}
+                      <div className="flex flex-col items-center mb-6 border-b border-white/10 pb-4">
+                        <h2 className="text-xl font-normal flex items-center gap-2 mb-4">
+                          <Check className="w-5 h-5"/> Game Analysis
+                        </h2>
+                        <div className="flex gap-4 mb-2">
+                           <button onClick={onHome} className="bg-[#3d98bd] hover:bg-[#3488aa] text-[#1a1a1a] font-bold text-[10px] px-3 py-1 rounded shadow">
+                             LOAD GAME
+                           </button>
+                           <button disabled className="bg-[#3b3937] text-white/40 font-bold text-[10px] px-3 py-1 rounded shadow cursor-not-allowed flex items-center gap-1">
+                             <Target className="w-3 h-3"/> ANALYZE
+                           </button>
+                        </div>
                       </div>
 
-                      {/* Move Context */}
-                      <div className="mb-6 bg-black/40 p-5 rounded-xl border border-white/5 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 rotate-12 group-hover:opacity-10 transition-opacity">
-                           <Activity className="w-16 h-16"/>
-                        </div>
-                        <div className="flex items-center justify-between mb-4">
-                           <span className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Current Position</span>
-                           <span className="text-xs font-bold text-slate-300 bg-white/5 px-2 py-0.5 rounded">Move {Math.ceil(currentPly / 2)}</span>
-                        </div>
-                        {currentMoveAnalysis ? (
-                           <div className="flex items-center gap-4">
-                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl border-2 ${
-                                currentMoveAnalysis.classification === "Brilliant" ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" :
-                                currentMoveAnalysis.classification === "Best" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
-                                currentMoveAnalysis.classification === "Blunder" ? "bg-red-500/10 text-red-500 border-red-500/30" :
-                                "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                              }`}>
-                                {currentMoveAnalysis.classification[0]}
-                              </div>
-                              <div>
-                                 <p className={`text-xl font-black tracking-tighter ${
-                                    currentMoveAnalysis.classification === "Brilliant" ? "text-cyan-400" :
-                                    currentMoveAnalysis.classification === "Best" ? "text-emerald-400" :
-                                    currentMoveAnalysis.classification === "Blunder" ? "text-red-500" :
-                                    "text-amber-400"
-                                 }`}>{currentMoveAnalysis.classification}</p>
-                                 <p className="text-xs text-slate-500 font-medium">Centipawn Loss: {Math.round(currentMoveAnalysis.cpl)}</p>
-                              </div>
-                           </div>
+                      {/* CLASSIFICATION TEXT */}
+                      <div className="flex flex-col items-center justify-center text-sm font-bold min-h-[50px] mb-4">
+                        {currentMoveAnalysis && currentPly > 0 ? (
+                            <div className="flex items-center gap-6">
+                               <span className="flex items-center gap-1.5" style={{
+                                 color: currentMoveAnalysis.classification === "Brilliant" ? "#2dd4bf" :
+                                        currentMoveAnalysis.classification === "Best" ? "#10b981" :
+                                        ["Blunder", "Mistake"].includes(currentMoveAnalysis.classification) ? "#ef4444" : "#fbbf24"
+                               }}>
+                                 <img src={`/icons/${currentMoveAnalysis.classification.toLowerCase()}.png`} alt="" className="w-4 h-4" />
+                                 {currentMoveAnalysis.san} is a {currentMoveAnalysis.classification.toLowerCase()}
+                               </span>
+                            </div>
                         ) : (
-                           <div className="flex items-center gap-3 italic text-slate-500 text-sm py-2">
-                              {currentPly <= 10 && currentPly > 0 ? (
-                                <div className="flex items-center gap-2 text-indigo-400 not-italic font-black">
-                                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
-                                    <BookOpen className="w-6 h-6" />
-                                  </div>
-                                  <span>Book Move</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-10 h-10 bg-slate-500/10 rounded-xl flex items-center justify-center border border-slate-500/20">
-                                    <Clock className="w-6 h-6 animate-pulse" />
-                                  </div>
-                                  <span>{currentPly === 0 ? "Opening Position" : "Opponent Move Analyzed"}</span>
-                                </div>
-                              )}
-                           </div>
+                            <span className="text-slate-400 font-normal">Game Review Ready</span>
                         )}
+                        <span className="text-xs text-slate-400 font-normal mt-1">
+                            {currentPly === 0 ? "Starting Position" : `Move ${Math.ceil(currentPly / 2)}`}
+                        </span>
                       </div>
 
-                      {/* Navigation Controls */}
-                      <div className="grid grid-cols-2 gap-3 mb-8">
-                        <button 
-                           onClick={() => setCurrentPly(Math.max(0, currentPly-1))}
-                           className="py-5 bg-[#262421] hover:bg-slate-700 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95 group shadow-lg"
-                        >
-                           <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform"/>
-                        </button>
-                        <button 
-                           onClick={() => setCurrentPly(Math.min(moves.length, currentPly+1))}
-                           className="py-5 bg-[#262421] hover:bg-slate-700 rounded-2xl flex items-center justify-center transition-all border border-white/5 active:scale-95 group shadow-lg"
-                        >
-                           <ChevronRight className="w-8 h-8 group-hover:translate-x-1 transition-transform"/>
-                        </button>
+                      {/* MOVE LIST SCROLLBOX */}
+                      <div className="flex-1 overflow-y-auto mb-4 border border-white/5 bg-black/10 rounded-lg p-2 flex flex-col min-h-[200px]">
+                        {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
+                           const whiteMove = moves[i * 2];
+                           const blackMove = moves[i * 2 + 1];
+                           const whitePly = i * 2 + 1;
+                           const blackPly = i * 2 + 2;
+                           
+                           return (
+                               <div key={i} className="flex text-sm py-1 items-center hover:bg-white/5 rounded px-2">
+                                  <div className="w-12 text-slate-500">{i + 1}.</div>
+                                  <button 
+                                      onClick={() => setCurrentPly(whitePly)} 
+                                      className={`flex-1 text-left font-bold pl-2 ${currentPly === whitePly ? 'bg-white/20 text-white rounded' : 'text-slate-300'}`}
+                                  >
+                                      {whiteMove}
+                                  </button>
+                                  <button 
+                                      onClick={() => blackMove && setCurrentPly(blackPly)}
+                                      className={`flex-1 text-left font-bold pl-2 ${currentPly === blackPly ? 'bg-white/20 text-white rounded' : 'text-slate-300'} ${!blackMove ? 'opacity-0 cursor-default' : ''}`}
+                                      disabled={!blackMove}
+                                  >
+                                      {blackMove || '...'}
+                                  </button>
+                               </div>
+                           );
+                        })}
                       </div>
 
-                      <div className="space-y-2.5 mb-8">
-                         {Object.entries(analysis?.counts || {}).filter(([_, count]: any) => count > 0).map(([cls, count]: any) => (
-                             <div key={cls} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                                <span className={`font-black text-[10px] uppercase tracking-widest ${
-                                    cls === "Brilliant" ? "text-cyan-400" :
-                                    cls === "Best" || cls === "Excellent" ? "text-emerald-400" :
-                                    cls === "Blunder" ? "text-red-500" :
-                                    "text-amber-400"
-                                }`}>{cls}</span>
-                                <span className="text-white font-black text-sm">{count}</span>
-                             </div>
-                         ))}
-                      </div>
-
-                      <div className="mt-auto">
-                         <button onClick={onHome} className="w-full py-4 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-2xl font-black transition-all shadow-[0_0_30px_rgba(16,185,129,0.05)]">
-                            FINISH ANALYSIS
+                      {/* BOTTOM TOOLBAR */}
+                      <div className="flex items-center justify-center gap-5 mt-auto text-slate-400 pt-4 border-t border-white/10">
+                         <button onClick={() => setFlipped(!flipped)} className="hover:text-white transition-colors" title="Flip Board">
+                            <RotateCcw className="w-5 h-5"/>
+                         </button>
+                         <button onClick={() => setCurrentPly(0)} className="hover:text-white transition-colors">
+                            <ChevronLeft className="w-5 h-5" />
+                         </button>
+                         <button onClick={() => setCurrentPly(Math.max(0, currentPly-1))} className="hover:text-white transition-colors">
+                            <ChevronLeft className="w-6 h-6" />
+                         </button>
+                         <button onClick={() => setCurrentPly(Math.min(moves.length, currentPly+1))} className="hover:text-white transition-colors">
+                            <ChevronRight className="w-6 h-6" />
+                         </button>
+                         <button onClick={() => setCurrentPly(moves.length)} className="hover:text-white transition-colors">
+                            <ChevronRight className="w-5 h-5" />
                          </button>
                       </div>
+                      {/* SUMMARY CARDS */}
+                      <div className="grid grid-cols-2 gap-3 mt-4 border-t border-white/10 pt-4">
+                         <div className="bg-black/20 p-3 rounded-lg border border-white/5 text-center">
+                            <p className="text-[9px] uppercase font-black text-slate-500 mb-1 tracking-widest">Accuracy</p>
+                            <p className="text-xl font-black text-emerald-400">{analysis?.accuracy || 0}%</p>
+                         </div>
+                         <div className="bg-black/20 p-3 rounded-lg border border-white/5 text-center">
+                            <p className="text-[9px] uppercase font-black text-slate-500 mb-1 tracking-widest">Perf. ELO</p>
+                            <p className="text-xl font-black text-amber-400">{analysis?.estimated_elo || "???"}</p>
+                         </div>
+                      </div>
                   </div>
+
+
               </div>
            </div>
        )}

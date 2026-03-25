@@ -22,8 +22,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   const playerChessColor = playerColor === "white" ? "w" : "b";
   const botChessColor = playerColor === "white" ? "b" : "w";
 
-  const [fen, setFen] = useState(new Chess().fen());
-  const gameRef = useRef(new Chess());
+  const [fen, setFen] = useState(settings.startFen || new Chess().fen());
+  const gameRef = useRef(new Chess(settings.startFen));
   const [moveHistory, setMoveHistory] = useState<{ san: string; score: string }[]>([]);
   const [stats, setStats] = useState<Stats>({ score: 0.0, depth: 0, nodes: 0, nps: 0, pv: "", mateIn: null });
   const [botStats, setBotStats] = useState<Stats>({ score: 0.0, depth: 0, nodes: 0, nps: 0, pv: "", mateIn: null });
