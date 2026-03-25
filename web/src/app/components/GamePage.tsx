@@ -31,7 +31,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   const [botMessage, setBotMessage] = useState(
     playerColor === "white" ? "Let's see what you've got." : "Analyzing the position..."
   );
-  const [showEvalBar, setShowEvalBar] = useState(true);
+  const [showEvalBar, setShowEvalBar] = useState(false);
 
   // Multiplayer States
   const socketRef = useRef<WebSocket | null>(null);
@@ -85,10 +85,14 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [squareStyles, setSquareStyles] = useState<Record<string, React.CSSProperties>>({});
 
-  // Hint arrow
+  // Hint arrow (fed from background analysis)
   const [hintArrow, setHintArrow] = useState<[string, string] | null>(null);
-  const [loadingHint, setLoadingHint] = useState(false);
-  const arrows = hintArrow ? [{ startSquare: hintArrow[0], endSquare: hintArrow[1], color: "rgba(163, 209, 96, 0.8)" }] : [];
+  const [showHintArrow, setShowHintArrow] = useState(false);
+  const arrows = (showHintArrow && hintArrow) ? [{ startSquare: hintArrow[0], endSquare: hintArrow[1], color: "rgba(163, 209, 96, 0.8)" }] : [];
+
+  // Background analysis refs
+  const analysisAbortRef = useRef<AbortController | null>(null);
+  const analysisFenRef = useRef<string>("");
 
   // Eval bar logic
   const scoreForWhite = stats.score;
@@ -164,11 +168,11 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     }
   };
 
-  // ── Engine Fetch ──
-  const fetchMove = useCallback(async (currentFen: string, forHint = false) => {
-    if (!forHint) {
-      setThinking(true); setIsPlayerTurn(false); setBotMessage("Analyzing potential lines...");
-    }
+  // ── Engine Fetch (for bot's actual move) ──
+  const fetchMove = useCallback(async (currentFen: string) => {
+    setThinking(true); setIsPlayerTurn(false); setBotMessage("Analyzing potential lines...");
+    // Stop background analysis while bot is thinking
+    if (analysisAbortRef.current) { analysisAbortRef.current.abort(); analysisAbortRef.current = null; }
     try {
       const response = await fetch(`${API_URL}/move`, {
         method: "POST",
@@ -178,13 +182,6 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       if (!response.ok) throw new Error(`Engine API error`);
       const data = await response.json();
       setEngineError(null);
-      if (forHint) {
-        if (data.bestmove && data.bestmove.length >= 4) {
-          setHintArrow([data.bestmove.slice(0, 2), data.bestmove.slice(2, 4)]);
-          setTimeout(() => setHintArrow(null), 4000);
-        }
-        return;
-      }
       if (data.bestmove) {
         const g = new Chess(currentFen);
         let mv = g.move(data.bestmove);
@@ -201,16 +198,81 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         }
       }
     } catch (err: any) {
-      if (!forHint) setEngineError("Engine Offline");
+      setEngineError("Engine Offline");
     } finally {
-      if (!forHint) { setThinking(false); setIsPlayerTurn(true); }
+      setThinking(false); setIsPlayerTurn(true);
     }
   }, [settings.thinkTime, playerColor, settings.matchSettings.increment]);
 
-  // ── Bot moves first if player is black ──
+  // ── Background Analysis Loop (live eval + hint) ──
+  const startBackgroundAnalysis = useCallback((currentFen: string) => {
+    // Abort any existing analysis
+    if (analysisAbortRef.current) { analysisAbortRef.current.abort(); }
+    analysisFenRef.current = currentFen;
+    const controller = new AbortController();
+    analysisAbortRef.current = controller;
+
+    const thinkTimes = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0];
+    let idx = 0;
+
+    const runNext = async () => {
+      if (controller.signal.aborted || analysisFenRef.current !== currentFen) return;
+      const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
+      try {
+        const response = await fetch(`${API_URL}/move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fen: currentFen, time: t }),
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (response.ok) {
+          const data = await response.json();
+          if (analysisFenRef.current !== currentFen) return;
+          // Update eval bar
+          setStats(prev => ({
+            ...prev,
+            score: data.score ?? prev.score,
+            depth: data.depth ?? prev.depth,
+            nodes: data.nodes ?? prev.nodes,
+            nps: data.nps ?? prev.nps,
+            pv: data.pv ?? prev.pv,
+            mateIn: data.mate_in ?? null,
+          }));
+          // Update hint arrow silently in background
+          if (data.bestmove && data.bestmove.length >= 4) {
+            setHintArrow([data.bestmove.slice(0, 2), data.bestmove.slice(2, 4)]);
+          }
+        }
+      } catch (e) {
+        // aborted or network error — stop silently
+        return;
+      }
+      idx++;
+      if (idx < thinkTimes.length && !controller.signal.aborted) {
+        setTimeout(runNext, 200);
+      }
+    };
+
+    runNext();
+  }, []);
+
+  // Start background analysis whenever it becomes the player's turn
+  useEffect(() => {
+    if (isPlayerTurn && !gameEnded) {
+      startBackgroundAnalysis(gameRef.current.fen());
+    } else {
+      if (analysisAbortRef.current) { analysisAbortRef.current.abort(); analysisAbortRef.current = null; }
+    }
+    return () => {
+      if (analysisAbortRef.current) { analysisAbortRef.current.abort(); }
+    };
+  }, [isPlayerTurn, gameEnded]);
+
+  // ── Bot moves first if player is black (only in AI mode) ──
   const initialBotMoveDone = useRef(false);
   useEffect(() => {
-    if (playerColor === "black" && !initialBotMoveDone.current) {
+    if (settings.mode === "ai" && playerColor === "black" && !initialBotMoveDone.current) {
       initialBotMoveDone.current = true;
       setTimeout(() => fetchMove(gameRef.current.fen()), 300);
     }
@@ -331,13 +393,11 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   }
 
 
-  async function getHint() {
-    if (loadingHint || thinking || !isPlayerTurn || gameEnded) return;
-    setLoadingHint(true);
-    setHintArrow(null);
-    // Fetch the best move for the player's current position
-    await fetchMove(gameRef.current.fen(), true);
-    setLoadingHint(false);
+  function getHint() {
+    if (!isPlayerTurn || gameEnded) return;
+    // Show whatever the background analysis has found so far
+    setShowHintArrow(true);
+    setTimeout(() => setShowHintArrow(false), 4000);
   }
 
   function handleResign() {
@@ -648,14 +708,14 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 <button
                   id="hint-btn"
                   onClick={getHint}
-                  disabled={loadingHint || thinking || !isPlayerTurn || gameEnded}
+                  disabled={!isPlayerTurn || gameEnded}
                   className="flex flex-col items-center justify-center gap-1.5 p-3 bg-[#3d3a36] hover:bg-amber-900/40 rounded transition-all group disabled:opacity-40 disabled:cursor-not-allowed relative col-span-2"
                 >
-                  <Lightbulb className={`w-5 h-5 text-slate-400 group-hover:text-amber-400 ${loadingHint ? "animate-pulse text-amber-400" : ""}`} />
+                  <Lightbulb className={`w-5 h-5 text-slate-400 group-hover:text-amber-400 ${showHintArrow ? "animate-pulse text-amber-400" : ""}`} />
                   <span className="text-[10px] uppercase font-black text-slate-500 group-hover:text-amber-300">
-                    {loadingHint ? "..." : "Hint"}
+                    Hint
                   </span>
-                  {hintArrow && (
+                  {hintArrow && isPlayerTurn && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping" />
                   )}
                 </button>
