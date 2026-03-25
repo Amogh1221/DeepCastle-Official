@@ -71,7 +71,8 @@ export default function App() {
         thinkTime: 1.0,
         mode: "p2p",
         matchSettings: { timeLimit: 0, increment: 0 },
-        matchId: incomingChallenge
+        matchId: incomingChallenge,
+        isJoiner: true
       });
       setPage("game");
       setIncomingChallenge(null);

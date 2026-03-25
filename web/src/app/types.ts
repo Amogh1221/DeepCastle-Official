@@ -14,6 +14,7 @@ interface GameSettings {
   mode: GameMode;
   matchSettings: MatchSettings;
   matchId?: string;
+  isJoiner?: boolean;
 }
 
 interface Stats {

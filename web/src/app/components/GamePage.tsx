@@ -60,15 +60,19 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
       socket.onopen = () => {
          socket.send(JSON.stringify({ type: "join", color: playerColor }));
+         // If this player is the JOINER (they have a matchId from the URL but didn't
+         // create it), the host is already waiting — mark opponent as joined immediately.
+         // The host will mark opponentJoined when they receive our "join" message.
+         if (settings.isJoiner) {
+           setOpponentJoined(true);
+         }
       };
 
       socket.onmessage = (event) => {
          const data = JSON.parse(event.data);
          if (data.type === "join") {
+            // Host receives this when joiner connects
             setOpponentJoined(true);
-            setBotMessage("Opponent is ready! Game ON.");
-            // Now it's safe to let White move
-            if (playerColor === "white") setIsPlayerTurn(true);
          } else if (data.type === "move") {
             applyExternalMove(data.move);
          } else if (data.type === "opponent_disconnected") {
@@ -79,6 +83,15 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       return () => socket.close();
     }
   }, []);
+
+  // ── When both players are present, activate game ──
+  useEffect(() => {
+    if (settings.mode === "p2p" && opponentJoined) {
+      setBotMessage("Opponent is ready! Game ON.");
+      // White always moves first; Black waits
+      if (playerColor === "white") setIsPlayerTurn(true);
+    }
+  }, [opponentJoined]);
 
 
 
