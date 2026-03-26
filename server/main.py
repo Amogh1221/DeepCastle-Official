@@ -470,9 +470,8 @@ async def analyze_game(request: AnalyzeRequest):
         # ~100 avg loss -> ~60%
         accuracy = max(10.0, min(100.0, 100.0 * math.exp(-0.005 * avg_cpl)))
         
-        # Estimate Elo based slightly on accuracy
-        # This is a fun heuristic metric
-        estimated_elo = int(max(400, min(3600, 3600 - (avg_cpl * 20))))
+        # Exponential Elo Decay calibrated to 3600 max engine strength
+        estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.015 * avg_cpl)))))
 
         return AnalyzeResponse(
             accuracy=round(accuracy, 1),
