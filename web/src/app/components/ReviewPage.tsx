@@ -260,12 +260,11 @@ export function ReviewPage({
         </div>
       )}
 
-      {/* MAIN CONTENT */}
       {!loading && !error && (
-        <div className="w-full max-w-[1600px] flex flex-col xl:flex-row gap-4">
+        <div className="w-full max-w-[1240px] mx-auto flex flex-col xl:flex-row gap-8">
 
           {/* LEFT: Board + Graph + Nav */}
-          <div className="flex flex-col gap-3 w-full xl:flex-1 xl:min-w-0">
+          <div className="flex flex-col gap-4 w-full xl:w-[600px] shrink-0">
 
             {/* Board row with eval bar */}
             <div className="flex gap-2 sm:gap-3">

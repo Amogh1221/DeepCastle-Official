@@ -258,11 +258,11 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       </div>
 
       {/* Main area */}
-      <div className="flex-1 w-full max-w-[1600px] mx-auto p-2 sm:p-3 lg:p-5 overflow-auto">
-        <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 min-h-0">
+      <div className="flex-1 w-full max-w-[1240px] mx-auto p-2 sm:p-3 lg:p-5 overflow-auto">
+        <div className="flex flex-col xl:flex-row gap-8 min-h-0">
 
           {/* LEFT: Board */}
-          <div className="w-full xl:flex-1 xl:min-w-0 flex flex-col gap-3">
+          <div className="flex flex-col gap-4 w-full xl:w-[600px] shrink-0">
 
             {/* Board row */}
             <div className="flex gap-2 sm:gap-3">

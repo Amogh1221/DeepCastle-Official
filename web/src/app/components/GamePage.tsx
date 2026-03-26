@@ -555,10 +555,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         )}
       </AnimatePresence>
 
-      <div className="w-full max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-4 p-2 sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[900px] relative z-10">
+      <div className="w-full max-w-[1240px] mx-auto flex flex-col lg:flex-row gap-8 p-2 sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[850px] relative z-10">
 
         {/* ── LEFT : BOARD ── */}
-        <div className="w-full lg:w-[65%] flex flex-col gap-2 h-full">
+        <div className="w-full lg:w-[600px] flex flex-col gap-2 h-full">
 
           {/* Bot profile (top = opponent) */}
           <div className="flex items-center justify-between p-2 sm:p-3 bg-[#1e1e22] rounded-xl border border-white/5 shadow-2xl">
@@ -597,7 +597,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 border-l border-white/10 pl-2 sm:pl-4">
-                {settings.matchSettings.timeLimit > 0 && (
+                {settings.matchSettings.timeLimit > 0 && settings.mode !== "ai" && (
                   (() => {
                     const oppTime = playerColor === "white" ? blackTime : whiteTime;
                     return (
@@ -708,7 +708,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="flex items-center gap-2 sm:gap-3 border-l border-white/10 pl-2 sm:pl-4">
-                {settings.matchSettings.timeLimit > 0 && (
+                {settings.matchSettings.timeLimit > 0 && settings.mode !== "ai" && (
                   (() => {
                     const pTime = playerColor === "white" ? whiteTime : blackTime;
                     return (
