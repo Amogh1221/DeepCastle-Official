@@ -144,7 +144,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
               className="group relative flex items-center gap-3 px-8 sm:px-10 py-3 sm:py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 rounded-2xl font-black text-base sm:text-lg shadow-[0_0_40px_rgba(16,185,129,0.3)] transition-all duration-200 border border-emerald-400/30"
             >
               <Play className="w-5 h-5 flex-shrink-0" />
-              Play DeepCastle
+              Play
               <div className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
             </motion.button>
             <motion.button
@@ -155,7 +155,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
               className="group relative flex items-center gap-3 px-8 sm:px-10 py-3 sm:py-4 bg-[#1a1a24] hover:bg-[#22223a] rounded-2xl font-black text-base sm:text-lg border border-indigo-500/30 hover:border-indigo-400/50 text-indigo-300 transition-all duration-200 shadow-[0_0_30px_rgba(99,102,241,0.1)]"
             >
               <BarChart2 className="w-5 h-5 flex-shrink-0" />
-              Analyze with DeepCastle
+              Analysis
             </motion.button>
           </div>
         </motion.div>

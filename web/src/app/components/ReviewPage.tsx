@@ -82,6 +82,7 @@ export function ReviewPage({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"review" | "analysis">("review");
   const [showMoveList, setShowMoveList] = useState(false);
+  const [sidelineFen, setSidelineFen] = useState<string | null>(null);
 
   // Analysis-mode live eval
   const [analysisArrows, setAnalysisArrows] = useState<any[]>([]);
@@ -143,31 +144,32 @@ export function ReviewPage({
     return () => window.removeEventListener("keydown", handler);
   }, [moves.length]);
 
-  // Live analysis when on "analysis" tab
+  // Reset sideline when navigating game history
   useEffect(() => {
-    if (tab !== "analysis") {
-      analysisAbortRef.current?.abort();
-      setAnalysisArrows([]);
-      setLiveEval("");
-      return;
-    }
+    setSidelineFen(null);
+  }, [currentPly]);
+
+  // Live analysis engine
+  useEffect(() => {
     analysisAbortRef.current?.abort();
     const ctrl = new AbortController();
     analysisAbortRef.current = ctrl;
-    analysisFenRef.current = currentFen;
+    
+    const targetFen = sidelineFen || currentFen;
+    analysisFenRef.current = targetFen;
 
     (async () => {
       try {
         const res = await fetch(`${API_URL}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fen: currentFen, time: 0.5 }),
+          body: JSON.stringify({ fen: targetFen, time: 0.5 }),
           signal: ctrl.signal,
         });
         if (ctrl.signal.aborted) return;
         if (res.ok) {
           const data = await res.json();
-          if (analysisFenRef.current !== currentFen) return;
+          if (analysisFenRef.current !== targetFen) return;
           if (data.bestmove?.length >= 4) {
             setAnalysisArrows([{
               startSquare: data.bestmove.slice(0, 2),
@@ -182,7 +184,7 @@ export function ReviewPage({
     })();
 
     return () => analysisAbortRef.current?.abort();
-  }, [tab, currentFen]);
+  }, [currentFen, sidelineFen]);
 
   // Scroll active move into view (Desktop only)
   useEffect(() => {
@@ -220,12 +222,26 @@ export function ReviewPage({
     });
   }
 
-  const boardArrows = tab === "analysis" ? analysisArrows : reviewArrows;
+  const boardArrows = sidelineFen ? analysisArrows : (tab === "analysis" ? analysisArrows : reviewArrows);
 
   const evalNum = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
   const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
   const evalBarWhite = rawWinProb;
   const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
+
+  function handlePieceDrop(sourceSquare: string, targetSquare: string) {
+    const startFen = sidelineFen || currentFen;
+    const g = new Chess(startFen);
+    try {
+      const mv = g.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+      if (mv) {
+        setSidelineFen(g.fen());
+        setTab("analysis"); // Shift to analysis more to see engine lines
+        return true;
+      }
+    } catch { }
+    return false;
+  }
 
   return (
     <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-start p-2 lg:p-4">
@@ -288,11 +304,13 @@ export function ReviewPage({
                 <div className="aspect-square w-full relative">
                   <Chessboard
                     options={{
-                      position: currentFen,
+                      position: sidelineFen || currentFen,
                       boardOrientation: orientation,
                       squareStyles,
                       arrows: boardArrows,
                       animationDurationInMs: 300,
+                      onPieceDrop: ({ sourceSquare, targetSquare }) => targetSquare ? handlePieceDrop(sourceSquare, targetSquare) : false,
+                      allowDragging: true,
                     }}
                   />
 

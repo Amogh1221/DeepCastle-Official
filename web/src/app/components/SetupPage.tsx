@@ -64,13 +64,13 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
               onClick={() => setMode("ai")}
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "ai" ? "bg-[#262621] text-emerald-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
-              <Cpu className="w-4 h-4" /> Against AI
+              <Cpu className="w-4 h-4" /> Against Engine
             </button>
             <button
               onClick={() => setMode("p2p")}
               className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${mode === "p2p" ? "bg-[#262621] text-indigo-400 shadow-xl border border-white/5" : "text-slate-500"}`}
             >
-              <Users className="w-4 h-4" /> Play vs Friend
+              <Users className="w-4 h-4" /> Play with Friend
             </button>
           </div>
 
