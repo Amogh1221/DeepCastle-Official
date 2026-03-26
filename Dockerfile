@@ -25,13 +25,12 @@ RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
     echo "---------------------------------"
 
 # ============================================================
-# DUAL-BRAIN ENGINE BUILD
+# BUILD YOUR CUSTOM ENGINE (The Source Fix)
 # ============================================================
-RUN echo "Cloning fresh engine source..." && \
-    git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
+WORKDIR /app/src
 
-WORKDIR /app/clean_engine/src
-RUN make -j$(nproc) build ARCH=x86-64-modern && \
+# We build from YOUR 'src/' folder so it natively supports your output.nnue
+RUN make -j$(nproc) build ARCH=x86-64 && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
