@@ -9,13 +9,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY . .
 
-# ─── Debug listing ────────────────────────────────────────────────────────────
-RUN echo "--- REPOSITORY CONTENT ---" && ls -R /app && echo "--------------------------"
-
-# ─── Build Stockfish ──────────────────────────────────────────────────────────
+# ─── Build Stockfish (Ultra-Compatible ARCH) ──────────────────────────────────
 RUN git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 WORKDIR /app/clean_engine/src
-RUN make -j$(nproc) build ARCH=x86-64-modern && \
+# x86-64 is the MOST compatible build for any cloud environment (Hugging Face)
+RUN make -j$(nproc) build ARCH=x86-64 && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
@@ -29,14 +27,10 @@ RUN LAUNCHER=$(find /app -name "main.py" | head -n 1) && \
         echo "CRITICAL: main.py not found!"; exit 1; \
     fi
 
-# ─── NNUE files ───────────────────────────────────────────────────────────────
-RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; 2>/dev/null || true
-
+# ─── NNUE files (Hard-linked for stability) ───────────────────────────────────
 WORKDIR /app/engine
-RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then \
-        wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
-    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then \
-        wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
+RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    cp nn-9a0cc2a62c52.nnue brain.nnue
 
 # ─── Python deps ──────────────────────────────────────────────────────────────
 WORKDIR /app
@@ -51,8 +45,9 @@ RUN pip install --no-cache-dir \
 # ─── Runtime config ───────────────────────────────────────────────────────────
 ENV PYTHONPATH="/app:/app/server"
 ENV ENGINE_PATH="/app/engine/deepcastle"
-ENV NNUE_PATH="/app/engine/output.nnue"
+ENV NNUE_PATH="/app/engine/brain.nnue"
 
 EXPOSE 7860
 
-CMD ["python3", "/app/launcher.py"]
+# Production Entry Point
+CMD ["uvicorn", "launcher:app", "--host", "0.0.0.0", "--port", "7860"]
