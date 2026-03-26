@@ -13,8 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DeepCastle v7 — NNUE Chess Engine",
-  description: "Challenge DeepCastle v7, a custom NNUE chess engine trained on 100M+ elite games with ~3604 Elo.",
+  title: "DeepCastle",
 };
 
 export default function RootLayout({

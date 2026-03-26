@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
+import { motion, AnimatePresence } from "framer-motion";
 import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, Trash2, BookOpen } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
@@ -33,7 +34,9 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showBestMove, setShowBestMove] = useState(true);
   const [openingName, setOpeningName] = useState<string>("");
+  const [stats, setStats] = useState({ score: 0.0, depth: 0, nodes: 0, nps: 0, pv: "", mateIn: null as number | null });
   const abortRef = useRef<AbortController | null>(null);
+  const analysisFenRef = useRef<string>("");
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -43,56 +46,80 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
 
   const currentFen = fens[currentIdx] ?? fens[0];
 
-  // Analyze whenever position changes
-  useEffect(() => {
-    const fen = currentFen;
-    abortRef.current?.abort();
+  // ── Background Analysis Loop (live eval + hint) ──
+  const startBackgroundAnalysis = useCallback((fen: string) => {
+    if (abortRef.current) abortRef.current.abort();
+    analysisFenRef.current = fen;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setIsAnalyzing(true);
     setLiveEval("...");
-    setBestArrow([]);
-    setOpeningName(""); // Clear opening name on new analysis
 
-    let done = false;
-    fetch(`${API_URL}/move`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fen, time: 0.8 }),
-      signal: ctrl.signal,
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data || ctrl.signal.aborted || !isMounted.current) return;
-        const s = data.score;
-        const evalStr = s !== undefined
-          ? (s > 0 ? `+${Number(s).toFixed(2)}` : Number(s).toFixed(2))
-          : "0.00";
-        setLiveEval(evalStr);
-        setOpeningName(data.opening || "");
-        if (typeof data.bestmove === "string" && data.bestmove.length >= 4) {
-          const bm: string = data.bestmove;
-          setBestMove(bm);
-          setBestArrow([{
-            startSquare: bm.slice(0, 2),
-            endSquare: bm.slice(2, 4),
-            color: "rgba(163,209,96,0.85)"
-          }]);
-        } else {
-          setBestMove(null);
-          setBestArrow([]);
+    const thinkTimes = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0];
+    let idx = 0;
+
+    const runNext = async () => {
+      if (ctrl.signal.aborted || analysisFenRef.current !== fen) return;
+      const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
+      try {
+        const res = await fetch(`${API_URL}/move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fen, time: t }),
+          signal: ctrl.signal,
+        });
+        if (ctrl.signal.aborted) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (analysisFenRef.current !== fen) return;
+          
+          const s = data.score;
+          const evalStr = s !== undefined
+            ? (s > 0 ? `+${Number(s).toFixed(2)}` : Number(s).toFixed(2))
+            : "0.00";
+          setLiveEval(evalStr);
+          setOpeningName(data.opening || "");
+          
+          setStats({
+            score: data.score ?? 0,
+            depth: data.depth ?? 0,
+            nodes: data.nodes ?? 0,
+            nps: data.nps ?? 0,
+            pv: data.pv ?? "",
+            mateIn: data.mate_in ?? null
+          });
+
+          if (typeof data.bestmove === "string" && data.bestmove.length >= 4) {
+            setBestMove(data.bestmove);
+            if (showBestMove) {
+              setBestArrow([{
+                startSquare: data.bestmove.slice(0, 2),
+                endSquare: data.bestmove.slice(2, 4),
+                color: "rgba(163,209,96,0.85)"
+              }]);
+            }
+          }
         }
-      })
-      .catch(() => {
-        // network error or abort – silently ignore
-        if (isMounted.current && !ctrl.signal.aborted) setLiveEval("?");
-      })
-      .finally(() => {
-        if (isMounted.current) setIsAnalyzing(false);
-      });
+      } catch (e) {
+        if (!ctrl.signal.aborted) setLiveEval("?");
+        return;
+      }
+      idx++;
+      if (idx < thinkTimes.length && !ctrl.signal.aborted) {
+        setTimeout(runNext, 200);
+      } else if (!ctrl.signal.aborted) {
+        setIsAnalyzing(false);
+      }
+    };
 
-    return () => ctrl.abort();
-  }, [currentFen]);
+    runNext();
+  }, [showBestMove]);
+
+  // Analyze whenever position changes
+  useEffect(() => {
+    startBackgroundAnalysis(currentFen);
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, [currentFen, startBackgroundAnalysis]);
 
   // Hide best move arrow when toggled off
   useEffect(() => {
@@ -102,7 +129,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       endSquare: bestMove.slice(2, 4),
       color: "rgba(163,209,96,0.85)"
     }]);
-  }, [showBestMove, bestMove]); // Added bestMove to dependency array
+  }, [showBestMove, bestMove]);
 
   // Keyboard nav
   useEffect(() => {
@@ -200,9 +227,14 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
     setOpeningName("");
   }
 
-  const evalNum = parseFloat(liveEval.replace("...", "0").replace("?", "0") || "0");
-  const evalColor = evalNum > 0.3 ? "text-emerald-400" : evalNum < -0.3 ? "text-red-400" : "text-slate-300";
-  const evalBarWhite = Math.max(5, Math.min(95, 50 + evalNum * 5));
+  const evalNum = stats.score;
+  const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
+  const evalBarFill = rawWinProb; // Inside analysis, always from white's perspective
+  
+  const evalLabel = (() => {
+    if (stats.mateIn !== null) return `M${stats.mateIn}`;
+    return evalNum > 0 ? `+${evalNum.toFixed(2)}` : evalNum.toFixed(2);
+  })();
 
   return (
     <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col pt-0">
@@ -230,13 +262,25 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
           <div className="flex flex-col gap-2" style={{ width: "55%" }}>
             <div className="flex gap-3 flex-1 min-h-0 justify-end">
               {/* Eval bar */}
-              <div className="w-5 bg-[#1a1a1f] rounded-lg overflow-hidden border border-white/5 flex flex-col relative shrink-0">
-                <div className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400" style={{ height: `${100 - evalBarWhite}%` }} />
-                <div className="absolute bottom-0 left-0 w-full bg-[#202024]" style={{ height: `${evalBarWhite}%` }} />
-              </div>
+            <div className="bg-[#161512] rounded-md flex flex-col overflow-hidden border border-slate-800 relative w-7 shrink-0">
+                <motion.div 
+                  animate={{ height: `${100 - evalBarFill}%` }}
+                  className="bg-[#1a1a1a] flex-shrink-0"
+                  transition={{ type: "spring", stiffness: 40, damping: 15 }}
+                />
+                <motion.div 
+                  animate={{ height: `${evalBarFill}%` }}
+                  className="bg-gray-100 flex-shrink-0 relative"
+                  transition={{ type: "spring", stiffness: 40, damping: 15 }}
+                >
+                  <div className="absolute bottom-1 w-full text-center text-[9px] font-black text-black opacity-50 leading-none">
+                    {evalLabel}
+                  </div>
+                </motion.div>
+                <div className="absolute top-1/2 w-full border-t border-slate-700 pointer-events-none" />
+            </div>
 
-              {/* Board */}
-              <div className="aspect-square relative flex-shrink-0" style={{ height: "100%", maxHeight: "calc(100vh - 100px)" }}>
+            <div className="flex-1 aspect-square bg-[#262421] p-3 rounded-lg shadow-2xl border-2 border-[#3d3a36]" style={{ height: "100%", maxHeight: "calc(100vh - 100px)" }}>
                 <Chessboard options={{
                   position: currentFen,
                   boardOrientation: flipped ? "black" : "white",
@@ -258,17 +302,22 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
           <div className="flex-1 flex flex-col min-h-0 bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
             {/* Eval header */}
             <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center justify-between bg-black/20">
-              <div className="flex items-center gap-2">
-                <span className={`text-2xl font-black tabular-nums ${evalColor}`}>
-                  {liveEval}
-                </span>
-                {isAnalyzing && (
-                  <div className="flex gap-0.5 items-end mb-1">
-                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "100ms" }} />
-                    <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "200ms" }} />
-                  </div>
-                )}
+              <div className="flex-1 flex flex-col justify-center min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xl font-black font-mono`}>{evalLabel}</span>
+                  {isAnalyzing && (
+                    <div className="flex gap-0.5">
+                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-1 bg-indigo-400 rounded-full" />
+                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 h-1 bg-indigo-400 rounded-full" />
+                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 h-1 bg-indigo-400 rounded-full" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-[10px] text-slate-500 uppercase font-black shrink-0 tracking-tighter">Depth {stats.depth}</span>
+                  <div className="w-px h-2 bg-white/5 shrink-0" />
+                  <span className="text-[10px] text-slate-500 font-mono truncate tracking-tighter">{stats.nps > 1000000 ? (stats.nps / 1000000).toFixed(1) + "M" : (stats.nps / 1000).toFixed(0) + "K"} NPS</span>
+                </div>
               </div>
               <button
                 onClick={() => setShowBestMove(v => !v)}

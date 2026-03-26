@@ -12,6 +12,8 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
   const [thinkTime, setThinkTime] = useState(1.0);
   const [mode, setMode] = useState<GameMode>("ai");
   const [variant, setVariant] = useState<"standard" | "chess960">("standard");
+  const [timeLimit, setTimeLimit] = useState(10);
+  const [increment, setIncrement] = useState(0);
 
   const engineTimeOptions = [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0];
 
@@ -25,7 +27,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
       thinkTime,
       mode,
       variant,
-      matchSettings: { timeLimit: 0, increment: 0 }
+      matchSettings: { timeLimit, increment }
     });
   };
 
@@ -123,7 +125,7 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
             </div>
 
             {/* Engine Think Time — AI only */}
-            {mode === "ai" && (
+            {mode === "ai" ? (
               <div>
                 <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center gap-2">
                   <Clock className="w-3 h-3" /> Engine Think Time
@@ -139,6 +141,48 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                       {t < 1 ? Math.round(t * 1000) + "ms" : t + "s"}
                     </button>
                   ))}
+                </div>
+              </div>
+            ) : (
+                <div className="flex flex-col gap-6">
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
+                    <span>Time Limit (min)</span>
+                    <span className="text-indigo-400 font-bold">{timeLimit}m</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="90"
+                    value={timeLimit}
+                    onChange={(e) => setTimeLimit(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-700">
+                    <span>1 min</span>
+                    <span>45 min</span>
+                    <span>90 min</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
+                    <span>Increment (sec)</span>
+                    <span className="text-indigo-400 font-bold">+{increment}s</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="30"
+                    value={increment}
+                    onChange={(e) => setIncrement(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-700">
+                    <span>0 sec</span>
+                    <span>15 sec</span>
+                    <span>30 sec</span>
+                  </div>
                 </div>
               </div>
             )}

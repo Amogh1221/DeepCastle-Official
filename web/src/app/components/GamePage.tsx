@@ -41,6 +41,9 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   // Multiplayer States
   const socketRef = useRef<WebSocket | null>(null);
   const [opponentJoined, setOpponentJoined] = useState(false);
+  const [whiteTime, setWhiteTime] = useState(settings.matchSettings.timeLimit * 60);
+  const [blackTime, setBlackTime] = useState(settings.matchSettings.timeLimit * 60);
+  const hasTimer = settings.matchSettings.timeLimit > 0;
 
   // Modal states
   const [showResignConfirm, setShowResignConfirm] = useState(false);
@@ -92,6 +95,38 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       if (playerColor === "white") setIsPlayerTurn(true);
     }
   }, [opponentJoined]);
+
+  // ── Timer Loop ──
+  useEffect(() => {
+    if (!hasTimer || gameEnded || (settings.mode === "p2p" && !opponentJoined)) return;
+
+    const interval = setInterval(() => {
+      const turn = gameRef.current.turn();
+      if (turn === "w") {
+        setWhiteTime(t => {
+          if (t <= 0) return 0;
+          return t - 1;
+        });
+      } else {
+        setBlackTime(t => {
+          if (t <= 0) return 0;
+          return t - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasTimer, gameEnded, opponentJoined, settings.mode]);
+
+  // ── Timeout handling ──
+  useEffect(() => {
+    if (whiteTime === 0 && !gameEnded && hasTimer) {
+      endGame(playerColor === "black", "White's time is up!");
+    }
+    if (blackTime === 0 && !gameEnded && hasTimer) {
+      endGame(playerColor === "white", "Black's time is up!");
+    }
+  }, [whiteTime, blackTime, gameEnded, hasTimer, playerColor]);
 
 
 
@@ -181,6 +216,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         setFen(copy.fen());
         setMoveHistory(prev => [...prev, { san: mv.san, score: "OPP" }]);
         setIsPlayerTurn(true);
+        
+        if (hasTimer) {
+          // Opponent just moved
+          if (playerChessColor === "w") setBlackTime(t => t + settings.matchSettings.increment);
+          else setWhiteTime(t => t + settings.matchSettings.increment);
+        }
+        
         if (copy.isGameOver()) handleGameOver(copy);
       }
     } catch (e) {
@@ -216,6 +258,12 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           });
           // Also sync eval bar score
           setStats(prev => ({ ...prev, score: data.score ?? prev.score, mateIn: data.mate_in ?? null }));
+          
+          // Apply increment for bot
+          if (hasTimer) {
+            setBlackTime(t => t + settings.matchSettings.increment);
+          }
+
           setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
         }
@@ -326,6 +374,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     if (mv) {
       gameRef.current = copy; setFen(copy.fen());
       setMoveHistory(prev => [...prev, { san: mv!.san, score: "USR" }]);
+      
+      // Apply increment
+      if (hasTimer) {
+        if (playerChessColor === "w") setWhiteTime(t => t + settings.matchSettings.increment);
+        else setBlackTime(t => t + settings.matchSettings.increment);
+      }
+      
       setBotMessage("Thinking..."); setMoveFrom(null); setSquareStyles({}); setHintArrow(null);
       if (settings.mode === "p2p" && socketRef.current) socketRef.current.send(JSON.stringify({ type: "move", move: { from, to, promotion: "q" } }));
       if (copy.isGameOver()) { handleGameOver(copy); return true; }
@@ -635,6 +690,15 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               </div>
             </div>
             <div className="flex items-center gap-4">
+               {hasTimer && (
+                 <div className={`px-4 py-2 rounded-lg font-black text-lg tabular-nums border-2 transition-all ${
+                   (playerColor === "white" ? gameRef.current.turn() === "w" : gameRef.current.turn() === "b") 
+                   ? "bg-amber-500/20 border-amber-500/40 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.2)]" 
+                   : "bg-black/40 border-white/5 text-slate-400"
+                 }`}>
+                   {formatTime(playerColor === "white" ? whiteTime : blackTime)}
+                 </div>
+               )}
                {thinking && <span className="text-xs text-emerald-400 animate-pulse font-semibold">Engine thinking…</span>}
             </div>
           </div>
