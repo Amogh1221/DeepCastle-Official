@@ -27,11 +27,11 @@ RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
 # ============================================================
 # DUAL-BRAIN ENGINE BUILD
 # ============================================================
-RUN echo "Cloning fresh engine source..." && \
-    git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
+RUN echo "Cloning Stockfish 17 Stable branch..." && \
+    git clone --depth 1 --branch sf_17 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 
 WORKDIR /app/clean_engine/src
-RUN make -j$(nproc) build ARCH=x86-64 && \
+RUN make -j$(nproc) build ARCH=x86-64-modern && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
