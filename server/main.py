@@ -9,7 +9,16 @@ import chess.engine
 import asyncio
 import json
 
-app = FastAPI(title="Deepcastle Engine API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize the engine pool
+    await pool.start()
+    yield
+    # Shutdown: Clean up the engine pool
+    await pool.stop()
+
+app = FastAPI(title="Deepcastle Engine API", lifespan=lifespan)
+from contextlib import asynccontextmanager
 
 # ─── Multiplaying / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
@@ -120,17 +129,59 @@ def health():
         return {"status": "error", "message": "Engine binary not found"}
     return {"status": "ok", "engine": "Deepcastle"}
 
-async def get_engine():
-    if not os.path.exists(ENGINE_PATH):
-        raise HTTPException(status_code=500, detail="Engine binary not found")
-    transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
-    if os.path.exists(NNUE_PATH):
+class EnginePool:
+    def __init__(self, size=4):
+        self.size = size
+        self.engines = asyncio.Queue()
+        self.all_engines = []
+
+    async def start(self):
+        print(f"Initializing engine pool with {self.size} processes...")
+        for i in range(self.size):
+            try:
+                engine = await self._create_engine()
+                await self.engines.put(engine)
+                self.all_engines.append(engine)
+                print(f"  [+] Engine {i+1}/{self.size} ready.")
+                # Give the system some room to breathe between processes
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                print(f"  [!] Failed to start engine {i+1}: {e}")
+
+    async def _create_engine(self):
+        if not os.path.exists(ENGINE_PATH):
+            raise Exception("Engine binary not found")
+        transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        if os.path.exists(NNUE_PATH):
+            try:
+                # Set Hash to 512 as requested, keep Threads to 1 to avoid CPU stalling
+                await engine.configure({"EvalFile": NNUE_PATH, "Hash": 512, "Threads": 1})
+            except Exception:
+                pass
+        return engine
+
+    @asynccontextmanager
+    async def acquire(self):
+        engine = await self.engines.get()
         try:
-            await engine.configure({"EvalFile": NNUE_PATH})
-            await engine.configure({"Hash": 512, "Threads": 2})
-        except Exception:
-            pass
-    return engine
+            yield engine
+        finally:
+            # Check if engine is still alive, if not, restart it
+            try:
+                await self.engines.put(engine)
+            except Exception:
+                # If engine is dead, we could restart here, but for now just put back
+                await self.engines.put(await self._create_engine())
+
+    async def stop(self):
+        print("Shutting down engine pool...")
+        for engine in self.all_engines:
+            try:
+                await engine.quit()
+            except:
+                pass
+
+pool = EnginePool(size=4)
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
@@ -145,61 +196,49 @@ def get_normalized_score(info) -> tuple[float, Optional[int]]:
 # ─── Engine Inference Route ────────────────────────────────────────────────────
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
-    engine = None
     try:
-        engine = await get_engine()
-        board = chess.Board(request.fen)
-        limit = chess.engine.Limit(time=request.time, depth=request.depth)
-        
-        result = await engine.play(board, limit)
-        info = await engine.analyse(board, limit)
-        
-        # From White's perspective in CP -> converted to Pawns for UI
-        score_cp, mate_in = get_normalized_score(info)
-        
-        depth = info.get("depth", 0)
-        nodes = info.get("nodes", 0)
-        nps = info.get("nps", 0)
+        async with pool.acquire() as engine:
+            board = chess.Board(request.fen)
+            limit = chess.engine.Limit(time=request.time, depth=request.depth)
+            
+            result = await engine.play(board, limit)
+            info = await engine.analyse(board, limit)
+            
+            # From White's perspective in CP -> converted to Pawns for UI
+            score_cp, mate_in = get_normalized_score(info)
+            depth = info.get("depth", 0)
+            nodes = info.get("nodes", 0)
+            nps = info.get("nps", 0)
 
-        pv_board = board.copy()
-        pv_parts = []
-        for m in info.get("pv", [])[:5]:
-            if m in pv_board.legal_moves:
-                try:
-                    pv_parts.append(pv_board.san(m))
-                    pv_board.push(m)
-                except Exception:
-                    break
-            else:
-                break
-        pv = " ".join(pv_parts)
+            pv_board = board.copy()
+            pv_parts = []
+            for m in info.get("pv", [])[:5]:
+                if m in pv_board.legal_moves:
+                    try:
+                        pv_parts.append(pv_board.san(m))
+                        pv_board.push(m)
+                    except Exception:
+                        break
+                else: break
+            pv = " ".join(pv_parts)
 
-        # Map mate score to pawns representation to not break old UI
-        score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
+            score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
+            board_fen_only = board.fen().split(" ")[0]
+            opening_name = openings_db.get(board_fen_only)
 
-        # Check for opening name
-        board_fen_only = board.fen().split(" ")[0]
-        opening_name = openings_db.get(board_fen_only)
-
-        return MoveResponse(
-            bestmove=result.move.uci(),
-            score=score_pawns,
-            depth=depth,
-            nodes=nodes,
-            nps=nps,
-            pv=pv,
-            mate_in=mate_in,
-            opening=opening_name
-        )
+            return MoveResponse(
+                bestmove=result.move.uci(),
+                score=score_pawns,
+                depth=depth,
+                nodes=nodes,
+                nps=nps,
+                pv=pv,
+                mate_in=mate_in,
+                opening=opening_name
+            )
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if engine:
-            try:
-                await engine.quit()
-            except Exception:
-                pass
 
 
 import math
@@ -221,6 +260,16 @@ def get_win_percentage_from_cp(cp: int) -> float:
     MULTIPLIER = -0.00368208
     win_chances = 2.0 / (1.0 + math.exp(MULTIPLIER * cp_ceiled)) - 1.0
     return 50.0 + 50.0 * win_chances
+
+def get_move_accuracy(win_pct_before: float, win_pct_after: float, is_white_move: bool) -> float:
+    """Lichess-style win%-based per-move accuracy (0–100)."""
+    if is_white_move:
+        diff = win_pct_before - win_pct_after
+    else:
+        diff = (100.0 - win_pct_before) - (100.0 - win_pct_after)
+    
+    accuracy = 103.1668 * math.exp(-0.04354 * max(0.0, diff)) - 3.1669
+    return max(0.0, min(100.0, accuracy))
 
 def get_win_percentage(info: dict) -> float:
     score = info.get("score")
@@ -345,151 +394,138 @@ def get_move_classification(
 
 @app.post("/analyze-game", response_model=AnalyzeResponse)
 async def analyze_game(request: AnalyzeRequest):
-    engine = None
     try:
-        engine = await get_engine()
-        board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
-        limit = chess.engine.Limit(time=request.time_per_move)
-        
-        analysis_results = []
-        
-        infos_before = await engine.analyse(board, limit, multipv=2)
-        infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
-        
-        counts = {
-            "Book": 0, "Brilliant": 0, "Great": 0, "Best": 0, 
-            "Excellent": 0, "Good": 0, "Inaccuracy": 0, 
-            "Mistake": 0, "Blunder": 0
-        }
+        async with pool.acquire() as engine:
+            board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
+            limit = chess.engine.Limit(time=request.time_per_move)
+            
+            analysis_results = []
+            infos_before = await engine.analyse(board, limit, multipv=2)
+            infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
+            
+            counts = {
+                "Book": 0, "Brilliant": 0, "Great": 0, "Best": 0, 
+                "Excellent": 0, "Good": 0, "Inaccuracy": 0, 
+                "Mistake": 0, "Blunder": 0
+            }
 
-        player_is_white = (request.player_color.lower() == "white")
-        
-        fen_history = [board.fen()]
-        move_history = []
-        total_cpl = 0.0
-        player_moves_count = 0
-        current_score, _ = get_normalized_score(infos_before[0])
+            player_is_white = (request.player_color.lower() == "white")
+            fen_history = [board.fen()]
+            move_history = []
+            player_move_accuracies: List[float] = []
+            player_cpls: List[float] = []  # keep for estimated_elo
+            current_score, _ = get_normalized_score(infos_before[0])
 
-        for i, san_move in enumerate(request.moves):
-            is_white_turn = board.turn == chess.WHITE
-            is_player_turn = is_white_turn if player_is_white else not is_white_turn
-            
-            score_before = current_score
-            
-            try:
-                move = board.parse_san(san_move)
-            except Exception:
-                break # Invalid move
+            for i, san_move in enumerate(request.moves):
+                is_white_turn = board.turn == chess.WHITE
+                is_player_turn = is_white_turn if player_is_white else not is_white_turn
+                
+                score_before = current_score
+                try:
+                    move = board.parse_san(san_move)
+                except Exception:
+                    break
 
-            info_dict = infos_before[0]
-            pv_list = info_dict.get("pv", [])
-            best_move_before = pv_list[0] if pv_list else None
-            
-            score_before, _ = get_normalized_score(info_dict)
-            win_pct_before = get_win_percentage(info_dict)
-            alt_win_pct_before: Optional[float] = None
-            if len(infos_before) > 1:
-                # Find the first alternative move that is not the played move
-                for line in infos_before:
-                    if line.get("pv") and line.get("pv")[0] != move:
-                        alt_win_pct_before = get_win_percentage(line)
-                        break
+                info_dict = infos_before[0]
+                pv_list = info_dict.get("pv", [])
+                best_move_before = pv_list[0] if pv_list else None
+                
+                score_before, _ = get_normalized_score(info_dict)
+                win_pct_before = get_win_percentage(info_dict)
+                alt_win_pct_before: Optional[float] = None
+                if len(infos_before) > 1:
+                    for line in infos_before:
+                        if line.get("pv") and line.get("pv")[0] != move:
+                            alt_win_pct_before = get_win_percentage(line)
+                            break
 
-            board_before_move = board.copy()
-            board.push(move)
-            
-            move_history.append(move)
-            fen_history.append(board.fen())
-            
-            infos_after_raw = await engine.analyse(board, limit, multipv=2)
-            infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
-            
-            info_after_dict: dict = infos_after[0]
-            
-            win_pct_after = get_win_percentage(info_after_dict)
-            score_after, _ = get_normalized_score(info_after_dict)
-            current_score = score_after
-            
-            best_pv_after = info_after_dict.get("pv", [])
-            
-            fen_two_moves_ago = None
-            uci_next_two_moves = None
-            if len(move_history) >= 2:
-                fen_two_moves_ago = fen_history[-3]
-                uci_next_two_moves = (move_history[-2], move_history[-1])
+                board_before_move = board.copy()
+                board.push(move)
+                
+                move_history.append(move)
+                fen_history.append(board.fen())
+                
+                infos_after_raw = await engine.analyse(board, limit, multipv=2)
+                infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
+                
+                info_after_dict: dict = infos_after[0]
+                win_pct_after = get_win_percentage(info_after_dict)
+                score_after, _ = get_normalized_score(info_after_dict)
+                current_score = score_after
+                best_pv_after = info_after_dict.get("pv", [])
+                
+                fen_two_moves_ago = None
+                uci_next_two_moves = None
+                if len(move_history) >= 2:
+                    fen_two_moves_ago = fen_history[-3]
+                    uci_next_two_moves = (move_history[-2], move_history[-1])
 
-            cls = "Book"
-            opening_name = None
-            board_fen_only = board.fen().split(" ")[0]
-            if board_fen_only in openings_db:
                 cls = "Book"
-                opening_name = openings_db[board_fen_only]
+                opening_name = None
+                board_fen_only = board.fen().split(" ")[0]
+                if board_fen_only in openings_db:
+                    cls = "Book"
+                    opening_name = openings_db[board_fen_only]
+                else:
+                    cls = get_move_classification(
+                        last_win_pct=win_pct_before,
+                        pos_win_pct=win_pct_after,
+                        is_white_move=is_white_turn,
+                        played_move=move,
+                        best_move_before=best_move_before,
+                        alt_win_pct=alt_win_pct_before,
+                        fen_two_moves_ago=fen_two_moves_ago,
+                        uci_next_two_moves=uci_next_two_moves,
+                        board_before_move=board_before_move,
+                        best_pv_after=best_pv_after
+                    )
+                
+                move_gain = score_after - score_before if is_white_turn else score_before - score_after
+                cpl = max(0.0, min(1000.0, -move_gain))
+
+                # Lichess-style per-move accuracy using win%
+                move_acc = get_move_accuracy(win_pct_before, win_pct_after, is_white_turn)
+
+                if is_player_turn:
+                    player_move_accuracies.append(move_acc)
+                    player_cpls.append(cpl)
+                    counts[cls] = counts.get(cls, 0) + 1
+                
+                analysis_results.append(MoveAnalysis(
+                    move_num=i+1,
+                    san=san_move,
+                    fen=board.fen(),
+                    classification=cls,
+                    cpl=float(cpl),
+                    score_before=float(score_before / 100.0),
+                    score_after=float(score_after / 100.0),
+                    best_move=best_move_before.uci() if best_move_before else "",
+                    opening=opening_name
+                ))
+                infos_before = infos_after
+
+            # NEW — Lichess win%-based accuracy
+            if player_move_accuracies:
+                # Lichess uses harmonic mean blended with arithmetic mean
+                arithmetic_mean = sum(player_move_accuracies) / len(player_move_accuracies)
+                harmonic_mean = len(player_move_accuracies) / sum(1.0 / max(a, 0.1) for a in player_move_accuracies)
+                accuracy = (arithmetic_mean + harmonic_mean) / 2.0
             else:
-                cls = get_move_classification(
-                    last_win_pct=win_pct_before,
-                    pos_win_pct=win_pct_after,
-                    is_white_move=is_white_turn,
-                    played_move=move,
-                    best_move_before=best_move_before,
-                    alt_win_pct=alt_win_pct_before,
-                    fen_two_moves_ago=fen_two_moves_ago,
-                    uci_next_two_moves=uci_next_two_moves,
-                    board_before_move=board_before_move,
-                    best_pv_after=best_pv_after
-                )
-            
-            move_gain = score_after - score_before if is_white_turn else score_before - score_after
-            cpl = max(0, -move_gain)
-            cpl = min(cpl, 1000.0)
-            
-            if is_player_turn:
-                total_cpl += cpl
-                player_moves_count += 1
-                counts[cls] = counts.get(cls, 0) + 1
-            
-            analysis_results.append(MoveAnalysis(
-                move_num=i+1,
-                san=san_move,
-                fen=board.fen(),
-                classification=cls,
-                cpl=float(cpl),
-                score_before=float(score_before / 100.0),
-                score_after=float(score_after / 100.0),
-                best_move=best_move_before.uci() if best_move_before else "",
-                opening=opening_name
-            ))
-            
-            infos_before = infos_after
+                accuracy = 0.0
 
-        # Win probability matching accuracy formula
-        # Accuracy = 100 * exp(-0.02 * avg_cpl) smoothed
-        avg_cpl = total_cpl / max(1, player_moves_count)
-        
-        # Simple heuristic mapping for Accuracy & Elo
-        # 0 avg loss -> 100%
-        # ~100 avg loss -> ~60%
-        accuracy = max(10.0, min(100.0, 100.0 * math.exp(-0.005 * avg_cpl)))
-        
-        # Estimate Elo based slightly on accuracy
-        # This is a fun heuristic metric
-        estimated_elo = int(max(400, min(3600, 3600 - (avg_cpl * 20))))
+            # Elo from avg CPL using exponential decay calibrated to your 3600 engine
+            avg_cpl = sum(player_cpls) / max(1, len(player_cpls))
+            estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.01 * avg_cpl)))))
 
-        return AnalyzeResponse(
-            accuracy=round(accuracy, 1),
-            estimated_elo=estimated_elo,
-            moves=analysis_results,
-            counts=counts
-        )
-        
+            return AnalyzeResponse(
+                accuracy=round(accuracy, 1),
+                estimated_elo=estimated_elo,
+                moves=analysis_results,
+                counts=counts
+            )
     except Exception as e:
         print(f"Analysis Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if engine:
-            try:
-                await engine.quit()
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":
