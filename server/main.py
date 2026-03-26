@@ -120,17 +120,38 @@ def health():
         return {"status": "error", "message": "Engine binary not found"}
     return {"status": "ok", "engine": "Deepcastle"}
 
+# Global engine instance to save memory and improve performance
+_GLOBAL_ENGINE = None
+
 async def get_engine():
-    if not os.path.exists(ENGINE_PATH):
-        raise HTTPException(status_code=500, detail="Engine binary not found")
-    transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
-    if os.path.exists(NNUE_PATH):
+    global _GLOBAL_ENGINE
+    if _GLOBAL_ENGINE is not None:
         try:
-            await engine.configure({"EvalFile": NNUE_PATH})
-            await engine.configure({"Hash": 512, "Threads": 2})
+            # Check if engine is still alive
+            if not _GLOBAL_ENGINE.is_terminated():
+                return _GLOBAL_ENGINE
         except Exception:
-            pass
-    return engine
+            _GLOBAL_ENGINE = None
+
+    if not os.path.exists(ENGINE_PATH):
+        raise HTTPException(status_code=500, detail=f"Engine NOT FOUND at {ENGINE_PATH}")
+    
+    try:
+        transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        
+        # Configure once
+        await engine.configure({"Hash": 256, "Threads": 1}) # More conservative for singleton
+        
+        if os.path.exists(NNUE_PATH):
+            try:
+                await engine.configure({"EvalFile": NNUE_PATH})
+            except Exception:
+                pass
+                
+        _GLOBAL_ENGINE = engine
+        return engine
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start engine: {str(e)}")
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
@@ -140,19 +161,21 @@ def get_normalized_score(info) -> tuple[float, Optional[int]]:
     if raw.is_mate():
         m = raw.mate() or 0
         return (10000.0 if m > 0 else -10000.0), m
-    return raw.score() or 0.0, None
+    return float(raw.score() or 0.0), None
 
 # ─── Engine Inference Route ────────────────────────────────────────────────────
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
-    engine = None
     try:
         engine = await get_engine()
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
+        # Search for best move
         result = await engine.play(board, limit)
-        info = await engine.analyse(board, limit)
+        
+        # Get evaluation separately to avoid blocking
+        info = await engine.analyse(board, chess.engine.Limit(time=0.1, depth=limit.depth or 12))
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
@@ -194,12 +217,6 @@ async def get_move(request: MoveRequest):
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if engine:
-            try:
-                await engine.quit()
-            except Exception:
-                pass
 
 
 import math
@@ -483,12 +500,6 @@ async def analyze_game(request: AnalyzeRequest):
     except Exception as e:
         print(f"Analysis Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if engine:
-            try:
-                await engine.quit()
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":
