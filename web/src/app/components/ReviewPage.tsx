@@ -183,10 +183,12 @@ export function ReviewPage({
     return () => analysisAbortRef.current?.abort();
   }, [tab, currentFen]);
 
-  // Scroll active move into view
+  // Scroll active move into view (Desktop only)
   useEffect(() => {
-    const el = moveListRef.current?.querySelector(`[data-ply="${currentPly}"]`);
-    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (typeof window !== "undefined" && window.innerWidth > 1024) {
+      const el = moveListRef.current?.querySelector(`[data-ply="${currentPly}"]`);
+      el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
   }, [currentPly]);
 
   // ── Derived data ───────────────────────────────────────────────────────────────
@@ -362,8 +364,8 @@ export function ReviewPage({
               </ResponsiveContainer>
             </div>
 
-            {/* Nav controls */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Nav controls (Mobile only) */}
+            <div className="flex xl:hidden items-center gap-1 shrink-0">
               <button onClick={onHome} className="p-2.5 bg-[#1a1a1f] hover:bg-white/5 border border-white/5 rounded-lg transition-all text-slate-400 hover:text-white">
                 <Home className="w-4 h-4" />
               </button>
@@ -587,6 +589,38 @@ export function ReviewPage({
                 </div>
               </div>
             )}
+            {/* Nav controls & Actions (Desktop) */}
+            <div className="hidden xl:flex flex-col gap-3 mt-auto pt-4 border-t border-white/5">
+              <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl p-1.5 focus-within:border-indigo-500/30 transition-all">
+                <button onClick={() => setCurrentPly(0)} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                  <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /><ChevronLeft className="w-4 h-4 -ml-2 group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+                <button onClick={() => setCurrentPly(p => Math.max(0, p - 1))} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                  <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+                
+                <div className="px-4 flex flex-col items-center">
+                   <span className="text-sm font-black text-white">{currentPly}</span>
+                   <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">/ {moves.length}</span>
+                </div>
+
+                <button onClick={() => setCurrentPly(p => Math.min(moves.length, p + 1))} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                  <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+                <button onClick={() => setCurrentPly(moves.length)} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /><ChevronRight className="w-4 h-4 -ml-2 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setFlipped(f => !f)} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all text-xs font-black uppercase tracking-widest text-slate-300 flex items-center justify-center gap-2">
+                  <RotateCcw className="w-4 h-4" /> Flip Board
+                </button>
+                <button onClick={onHome} className="flex-[2] py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.3)] transition-all text-xs font-black uppercase tracking-widest text-white flex items-center justify-center gap-2">
+                  <Home className="w-4 h-4" /> Return Home
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

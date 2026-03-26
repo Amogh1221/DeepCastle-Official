@@ -78,6 +78,14 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           setOpponentJoined(true);
         } else if (data.type === "move") {
           applyExternalMove(data.move);
+        } else if (data.type === "resign") {
+          setGameEnded(true);
+          setGameResult({
+            title: "Opponent Resigned",
+            subtitle: "Victory! Your opponent has resigned the game.",
+            isWin: true
+          });
+          setShowResultModal(true);
         } else if (data.type === "opponent_disconnected") {
           endGame(true, "Opponent disconnected — you win!");
         }
@@ -485,8 +493,15 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   function confirmResign() {
     setShowResignConfirm(false);
     setGameEnded(true);
+    setGameResult({
+      title: "Game Over",
+      subtitle: "You have resigned.",
+      isWin: false
+    });
     setShowResultModal(true);
-    setGameResult(null); // null = resigned (use ResignModal-style display)
+    if (settings.mode === "p2p" && socketRef.current) {
+      socketRef.current.send(JSON.stringify({ type: "resign" }));
+    }
   }
 
 
