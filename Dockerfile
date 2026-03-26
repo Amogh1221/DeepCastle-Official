@@ -24,12 +24,20 @@ RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
     ls -R /app && \
     echo "---------------------------------"
 
-# ============================================================
 # BUILD YOUR CUSTOM ENGINE (The Source Fix)
 # ============================================================
+# Create a dummy net.sh to bypass the missing script error
+RUN mkdir -p /app/scripts && \
+    echo '#!/bin/sh\nexit 0' > /app/scripts/net.sh && \
+    chmod +x /app/scripts/net.sh
+
 WORKDIR /app/src
 
-# We build from YOUR 'src/' folder so it natively supports your output.nnue
+# Download required brains into src/ so they can be embedded during build
+RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
+
+# Build from YOUR 'src/' folder
 RUN make -j$(nproc) build ARCH=x86-64 && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
@@ -54,12 +62,8 @@ RUN echo "Searching for Launcher (main.py)..." && \
 # ============================================================
 WORKDIR /app/engine
 
-# Download your trained brain directly from HF Space to be 100% sure it exists
+# Download your trained brain directly from HF Space
 RUN wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
-
-# Also download failsafe stockfish brains (backup)
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
 
 # ============================================================
 # BACKEND SETUP
