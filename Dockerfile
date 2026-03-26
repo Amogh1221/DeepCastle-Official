@@ -60,7 +60,8 @@ RUN mkdir -p /app/engine && \
 # Download standard brains as fallback into the engine folder
 WORKDIR /app/engine
 RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
+    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue && \
+    chmod -R 777 /app/engine
 
 # ============================================================
 # BACKEND SETUP
