@@ -31,7 +31,7 @@ RUN echo "Cloning fresh engine source..." && \
     git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 
 WORKDIR /app/clean_engine/src
-RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
+RUN make -j$(nproc) build ARCH=x86-64 && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle

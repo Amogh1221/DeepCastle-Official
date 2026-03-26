@@ -134,24 +134,38 @@ async def get_engine():
             _GLOBAL_ENGINE = None
 
     if not os.path.exists(ENGINE_PATH):
-        raise HTTPException(status_code=500, detail=f"Engine NOT FOUND at {ENGINE_PATH}")
+        raise HTTPException(status_code=500, detail=f"Engine binary NOT FOUND at {ENGINE_PATH}")
     
+    print(f"[DEBUG] Attempting to start engine at {ENGINE_PATH}")
     try:
         transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        print(f"[DEBUG] Engine process started. ID: {transport.get_pid()}")
         
         # Configure once
-        await engine.configure({"Hash": 256, "Threads": 1}) # More conservative for singleton
+        await engine.configure({"Hash": 128, "Threads": 1}) 
         
         if os.path.exists(NNUE_PATH):
+            print(f"[DEBUG] Found NNUE at {NNUE_PATH}. Attempting to load...")
             try:
                 await engine.configure({"EvalFile": NNUE_PATH})
-            except Exception:
-                pass
+                print("[DEBUG] NNUE loaded successfully.")
+            except Exception as ne:
+                print(f"[ERROR] NNUE load failed: {str(ne)}")
+        else:
+            print(f"[WARNING] NNUE NOT FOUND at {NNUE_PATH}")
                 
         _GLOBAL_ENGINE = engine
         return engine
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start engine: {str(e)}")
+        print(f"[CRITICAL] Engine failed to start: {str(e)}")
+        # Try to gather more info by running the binary directly briefly
+        import subprocess
+        try:
+            diag = subprocess.run([ENGINE_PATH, "uci"], capture_output=True, text=True, timeout=2)
+            print(f"[DIAG] Engine output: {diag.stdout} | Error: {diag.stderr}")
+        except Exception as de:
+            print(f"[DIAG] Could not run diagnosis: {str(de)}")
+        raise HTTPException(status_code=500, detail=f"Engine Crash: {str(e)}")
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
