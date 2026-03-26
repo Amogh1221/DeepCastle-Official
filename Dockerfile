@@ -19,10 +19,11 @@ WORKDIR /app
 COPY . .
 
 # ============================================================
-# CUSTOM DEEPCASTLE ENGINE BUILD (From your src)
+# CUSTOM DEEPCASTLE ENGINE BUILD (From your engine/src)
 # ============================================================
 WORKDIR /app/engine/src
-RUN make -j$(nproc) build ARCH=x86-64-modern && \
+# Use the exact command from build_linux.sh but without the invalid 'build' target
+RUN make -j$(nproc) ARCH=x86-64-modern && \
     mkdir -p /app/engine_bin && \
     cp stockfish /app/engine_bin/deepcastle && \
     chmod +x /app/engine_bin/deepcastle
@@ -40,7 +41,7 @@ RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
 # Map your custom brain (output.nnue) correctly for the server
 RUN find /app -maxdepth 2 -name "*.nnue" -exec cp {} /app/engine_bin/output.nnue \; || echo "No custom NNUE found."
 
-# Force permissions for the binary and brain
+# Force permissions
 RUN chmod -R 777 /app/engine_bin
 
 # ============================================================
@@ -48,7 +49,7 @@ RUN chmod -R 777 /app/engine_bin
 # ============================================================
 RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
 
-# Explicit Paths for DeepCastle
+# Explicit Paths
 ENV ENGINE_PATH=/app/engine_bin/deepcastle
 ENV NNUE_PATH=/app/engine_bin/output.nnue
 ENV PYTHONPATH="/app:/app/server"
