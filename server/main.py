@@ -10,11 +10,13 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 
-# ─── Configuration ─────────────────────────────────────────────────────────────
+# ─── 1. SERVER CONFIGURATION ───────────────────────────────────────────────────────────
+# These variables define the paths for the engine and the neural network weights.
 ENGINE_PATH = os.environ.get("ENGINE_PATH", "/app/engine/deepcastle")
 NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine/output.nnue")
 
-# ─── Database ──────────────────────────────────────────────────────────────────
+# ─── 2. OPENINGS DATABASE ─────────────────────────────────────────────────────────────
+# This loads a pre-populated opening book so the bot can respond instantly during theory.
 openings_db = {}
 openings_path = os.path.join(os.path.dirname(__file__), "openings.json")
 if os.path.exists(openings_path):
@@ -24,19 +26,21 @@ if os.path.exists(openings_path):
     except Exception:
         pass
 
-# ─── Pydantic Models ───────────────────────────────────────────────────────────
+# ─── 3. PYDANTIC MODELS (Data Structures) ───────────────────────────────────────────
+# Used for input validation and defining the exact format of the JSON responses.
+
 class MoveRequest(BaseModel):
     fen: str
-    time: float = 1.0 
+    time: float = 1.0  # Seconds the engine will search
     depth: Optional[int] = None
 
 class MoveResponse(BaseModel):
     bestmove: str
-    score: float
+    score: float       # Pawns (+1.0 for White, -1.0 for Black)
     depth: int
     nodes: int
     nps: int
-    pv: str
+    pv: str            # Principal Variation (best sequence of moves)
     mate_in: Optional[int] = None
     opening: Optional[str] = None
 
@@ -50,71 +54,77 @@ class MoveAnalysis(BaseModel):
     move_num: int
     san: str
     best_move: str
-    classification: str
+    classification: str # "Brilliant", "Great", "Best", etc.
     opening: Optional[str] = None
-    cpl: float
+    cpl: float         # Centipawn Loss (0 = perfect)
     score_before: float
     score_after: float
 
 class AnalyzeResponse(BaseModel):
-    accuracy: float
-    estimated_elo: int
+    accuracy: float     # Lichess-style (0-100)
+    estimated_elo: int  # Calibrated Performance Rating
     moves: List[MoveAnalysis]
-    counts: Dict[str, int]
+    counts: Dict[str, int] # Count of each classification (2 Blunders, etc.)
 
-# ─── Helper Functions ──────────────────────────────────────────────────────────
+# ─── 4. CORE MATH & LOGIC HELPERS ──────────────────────────────────────────────────
+# These functions calculate win percentages, accuracy, and calibrated Elo scores.
+
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
-    """Returns the score from White's perspective in centipawns."""
+    """Normalizes UCI score to centipawns from White's perspective."""
     if "score" not in info:
         return 0.0, None
     raw = info["score"].white()
     if raw.is_mate():
         m = raw.mate() or 0
         return (10000.0 if m > 0 else -10000.0), m
-    return raw.score() or 0.0, None
+    return float(raw.score() or 0.0), None
 
 def get_win_percentage_from_cp(cp: int) -> float:
+    """AS-UCI win chance formula (0.0 to 100.0)."""
     cp_ceiled = max(-1000, min(1000, cp))
     MULTIPLIER = -0.00368208
     win_chances = 2.0 / (1.0 + math.exp(MULTIPLIER * cp_ceiled)) - 1.0
     return 50.0 + 50.0 * win_chances
 
 def get_move_accuracy(win_pct_before: float, win_pct_after: float, is_white_move: bool) -> float:
-    """Lichess-style win%-based per-move accuracy (0–100)."""
+    """Lichess-style per-move accuracy calculation using exponential decay."""
     if is_white_move:
         diff = win_pct_before - win_pct_after
     else:
         diff = (100.0 - win_pct_before) - (100.0 - win_pct_after)
     
+    # Formula: 103.16 * exp(-0.04 * diff) - 3.16
     accuracy = 103.1668 * math.exp(-0.04354 * max(0.0, diff)) - 3.1669
     return max(0.0, min(100.0, accuracy))
 
 def get_win_percentage(info: dict) -> float:
+    """Extracts win percentage from engine info dictionary."""
     score = info.get("score")
-    if not score:
-        return 50.0
+    if not score: return 50.0
     white_score = score.white()
     if white_score.is_mate():
         mate_val = white_score.mate()
         return 100.0 if mate_val > 0 else 0.0
-    return get_win_percentage_from_cp(white_score.score())
+    return get_win_percentage_from_cp(white_score.score() or 0)
 
-def is_losing_or_alt_winning(pos_win_pct: float, alt_win_pct: float, is_white_move: bool) -> bool:
+# ─── 5. MOVE CLASSIFICATION HELPERS ───────────────────────────────────────────────
+# These identify Brilliant moves, Sacrifices, Blunders, and Book moves.
+
+def is_losing_or_alt_winning(pos_win_pct, alt_win_pct, is_white_move) -> bool:
     is_losing = pos_win_pct < 50.0 if is_white_move else pos_win_pct > 50.0
     is_alt_winning = alt_win_pct > 97.0 if is_white_move else alt_win_pct < 3.0
     return is_losing or is_alt_winning
 
-def get_has_changed_outcome(last_win_pct: float, pos_win_pct: float, is_white_move: bool) -> bool:
+def get_has_changed_outcome(last_win_pct, pos_win_pct, is_white_move) -> bool:
     diff = (pos_win_pct - last_win_pct) * (1 if is_white_move else -1)
     return diff > 10.0 and ((last_win_pct < 50.0 and pos_win_pct > 50.0) or (last_win_pct > 50.0 and pos_win_pct < 50.0))
 
-def get_is_only_good_move(pos_win_pct: float, alt_win_pct: float, is_white_move: bool) -> bool:
+def get_is_only_good_move(pos_win_pct, alt_win_pct, is_white_move) -> bool:
     diff = (pos_win_pct - alt_win_pct) * (1 if is_white_move else -1)
     return diff > 10.0
 
-def is_simple_recapture(fen_two_moves_ago: str, previous_move: chess.Move, played_move: chess.Move) -> bool:
-    if previous_move.to_square != played_move.to_square:
-        return False
+def is_simple_recapture(fen_two_moves_ago, previous_move, played_move) -> bool:
+    if previous_move.to_square != played_move.to_square: return False
     b = chess.Board(fen_two_moves_ago)
     return b.piece_at(previous_move.to_square) is not None
 
@@ -124,7 +134,8 @@ def get_material_difference(board: chess.Board) -> int:
     b = sum(values.get(p.piece_type, 0) for p in board.piece_map().values() if p.color == chess.BLACK)
     return w - b
 
-def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv: list) -> bool:
+def get_is_piece_sacrifice(board: chess.Board, played_move, best_pv: list) -> bool:
+    """Checks if a move is a genuine piece sacrifice by looking at the resulting PV material."""
     if not best_pv: return False
     start_diff = get_material_difference(board)
     white_to_play = board.turn == chess.WHITE
@@ -132,7 +143,6 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
     moves = [played_move] + best_pv
     if len(moves) % 2 == 1: moves = moves[:-1]
     captured_w, captured_b = [], []
-    non_capturing = 1
     for m in moves:
         if m in sim_board.legal_moves:
             captured_piece = sim_board.piece_at(m.to_square)
@@ -140,16 +150,11 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
             if captured_piece:
                 if sim_board.turn == chess.WHITE: captured_b.append(captured_piece.piece_type)
                 else: captured_w.append(captured_piece.piece_type)
-                non_capturing = 1
-            else:
-                non_capturing -= 1
-                if non_capturing < 0: break
             sim_board.push(m)
         else: break
     for p in captured_w[:]:
         if p in captured_b:
-            captured_w.remove(p)
-            captured_b.remove(p)
+            captured_w.remove(p); captured_b.remove(p)
     if abs(len(captured_w) - len(captured_b)) <= 1 and all(p == chess.PAWN for p in captured_w + captured_b):
         return False
     end_diff = get_material_difference(sim_board)
@@ -158,11 +163,11 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
     return player_rel < 0
 
 def get_move_classification(last_win_pct, pos_win_pct, is_white_move, played_move, best_move_before, alt_win_pct, fen_two_moves_ago, uci_next_two_moves, board_before_move, best_pv_after) -> str:
+    """Classifies a move based on win% change and engine principal variation."""
     diff = (pos_win_pct - last_win_pct) * (1 if is_white_move else -1)
     if alt_win_pct is not None and diff >= -2.0:
         if get_is_piece_sacrifice(board_before_move, played_move, best_pv_after):
             if not is_losing_or_alt_winning(pos_win_pct, alt_win_pct, is_white_move): return "Brilliant"
-    if alt_win_pct is not None and diff >= -2.0:
         is_recapture = False
         if fen_two_moves_ago and uci_next_two_moves:
              is_recapture = is_simple_recapture(fen_two_moves_ago, uci_next_two_moves[0], uci_next_two_moves[1])
@@ -175,7 +180,8 @@ def get_move_classification(last_win_pct, pos_win_pct, is_white_move, played_mov
     if diff < -2.0: return "Good"
     return "Excellent"
 
-# ─── Connection Manager ────────────────────────────────────────────────────────
+# ─── 6. MULTIPLAYER CONNECTION MANAGER ───────────────────────────────────────────────
+# Handles websocket routing for playing against friends in real-time rooms.
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}
@@ -196,7 +202,8 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ─── Engine Pool ───────────────────────────────────────────────────────────────
+# ─── 7. ENGINE POOL (Orchestrator) ──────────────────────────────────────────────────
+# Maintains 4 persistent engine processes for high-concurrency instant response.
 class EnginePool:
     def __init__(self, size=4):
         self.size = size
@@ -210,7 +217,7 @@ class EnginePool:
                 await self.engines.put(engine)
                 self.all_engines.append(engine)
                 print(f"  [+] Engine {i+1}/{self.size} ready.")
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5) # Prevent CPU thrashing on boot
             except Exception as e:
                 print(f"  [!] Failed to start engine {i+1}: {e}")
     async def _create_engine(self):
@@ -222,6 +229,7 @@ class EnginePool:
         return engine
     @asynccontextmanager
     async def acquire(self):
+        """Yields an engine from the pool and ensures it's returned or restarted."""
         engine = await self.engines.get()
         try: yield engine
         finally:
@@ -234,18 +242,24 @@ class EnginePool:
 
 pool = EnginePool(size=4)
 
-# ─── FastAPI Application ───────────────────────────────────────────────────────
+# ─── 8. FASTAPI LIFESPAN CONTROLLER ──────────────────────────────────────────────────
+# Controls what happens when the server starts and stops on Hugging Face.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize the engine pool first
     await pool.start()
     yield
+    # Cleanup on shutdown
     await pool.stop()
 
 app = FastAPI(title="Deepcastle Engine API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# ─── 9. API ROUTES ──────────────────────────────────────────────────────────────────
+
 @app.websocket("/ws/{match_id}")
 async def websocket_endpoint(websocket: WebSocket, match_id: str):
+    """Handles real-time friend play relay."""
     await manager.connect(websocket, match_id)
     await manager.broadcast(json.dumps({"type": "join"}), match_id, exclude=websocket)
     try:
@@ -257,14 +271,14 @@ async def websocket_endpoint(websocket: WebSocket, match_id: str):
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
     except Exception:
         manager.disconnect(websocket, match_id)
-        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
 
 @app.get("/")
 def home():
-    return {"status": "online", "engine": "Deepcastle Bulletproof", "platform": "Hugging Face"}
+    return {"status": "online", "engine": "Deepcastle Pro", "platform": "Hugging Face"}
 
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
+    """Fetches the best engine move for a given FEN position."""
     try:
         async with pool.acquire() as engine:
             board = chess.Board(request.fen)
@@ -277,8 +291,7 @@ async def get_move(request: MoveRequest):
             for m in info.get("pv", [])[:5]:
                 if m in pv_board.legal_moves:
                     try:
-                        pv_parts.append(pv_board.san(m))
-                        pv_board.push(m)
+                        pv_parts.append(pv_board.san(m)); pv_board.push(m)
                     except Exception: break
                 else: break
             score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
@@ -288,6 +301,7 @@ async def get_move(request: MoveRequest):
 
 @app.post("/analyze-game", response_model=AnalyzeResponse)
 async def analyze_game(request: AnalyzeRequest):
+    """Performs deep game analysis, classifies moves, and estimates performance Elo."""
     try:
         async with pool.acquire() as engine:
             board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
@@ -307,24 +321,19 @@ async def analyze_game(request: AnalyzeRequest):
                 try: move = board.parse_san(san_move)
                 except Exception: break
                 info_dict = infos_before[0]
-                pv_list = info_dict.get("pv", [])
-                best_move_before = pv_list[0] if pv_list else None
+                best_move_before = info_dict.get("pv", [None])[0]
                 win_pct_before = get_win_percentage(info_dict)
                 alt_win_pct_before = None
                 if len(infos_before) > 1:
                     for line in infos_before:
                         if line.get("pv") and line.get("pv")[0] != move:
-                            alt_win_pct_before = get_win_percentage(line)
-                            break
+                            alt_win_pct_before = get_win_percentage(line); break
                 board_before_move = board.copy()
-                board.push(move)
-                move_history.append(move)
-                fen_history.append(board.fen())
+                board.push(move); move_history.append(move); fen_history.append(board.fen())
                 infos_after_raw = await engine.analyse(board, limit, multipv=2)
                 infos_after = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
                 info_after_dict = infos_after[0]
-                win_pct_after = get_win_percentage(info_after_dict)
-                score_after, _ = get_normalized_score(info_after_dict)
+                win_pct_after, (score_after, _) = get_win_percentage(info_after_dict), get_normalized_score(info_after_dict)
                 current_score = score_after
                 fen_two_moves_ago = fen_history[-3] if len(move_history) >= 2 else None
                 uci_next_two_moves = (move_history[-2], move_history[-1]) if len(move_history) >= 2 else None
@@ -337,8 +346,7 @@ async def analyze_game(request: AnalyzeRequest):
                 cpl = max(0.0, min(1000.0, -move_gain))
                 move_acc = get_move_accuracy(win_pct_before, win_pct_after, is_white_turn)
                 if is_player_turn:
-                    player_move_accuracies.append(move_acc)
-                    player_cpls.append(cpl)
+                    player_move_accuracies.append(move_acc); player_cpls.append(cpl)
                     counts[cls] = counts.get(cls, 0) + 1
                 analysis_results.append(MoveAnalysis(move_num=i+1, san=san_move, best_move=best_move_before.uci() if best_move_before else "", classification=cls, opening=opening_name, cpl=float(cpl), score_before=float(score_before / 100.0), score_after=float(score_after / 100.0)))
                 infos_before = infos_after
@@ -351,6 +359,7 @@ async def analyze_game(request: AnalyzeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── 10. MAIN ENTRY POINT ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7860)
