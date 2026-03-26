@@ -33,11 +33,16 @@ RUN mkdir -p /app/scripts && \
 
 WORKDIR /app/src
 
+# Download required brains into src/ so they can be embedded during build (incbin)
+RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
+
 # Build from the detected 'src/' folder - ARCH=x86-64 is the official "Portable" build
 RUN make -j$(nproc) all ARCH=x86-64 && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle
+    chmod +x /app/engine/deepcastle && \
+    cp *.nnue /app/engine/
 
 # ============================================================
 # LAUNCHER PREPARATION (The Search & Destroy Fix)
@@ -54,13 +59,12 @@ RUN echo "Searching for Launcher (main.py)..." && \
     fi
 
 # ============================================================
-# BRAIN PLACEMENT (The Neural Sync)
+# BRAIN PLACEMENT (The Custom Sync)
 # ============================================================
 WORKDIR /app/engine
 
-# Download ALL brains (Standard + Your Custom one) into the SAME folder as the binary
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue && \
+# Download ALL brains into the final folder for runtime search safety
+RUN cp /app/src/*.nnue /app/engine/ && \
     wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
 
 # ============================================================
