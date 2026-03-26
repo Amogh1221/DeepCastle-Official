@@ -1,53 +1,72 @@
-# ─── Base ─────────────────────────────────────────────────────────────────────
+# Use Python 3.12 slim
 FROM python:3.12-slim
 
-# System deps
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential make g++ wget git curl xz-utils findutils \
+    build-essential \
+    make \
+    g++ \
+    wget \
+    git \
+    findutils \
+    curl \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
+# Set working directory
 WORKDIR /app
+
+# Copy ALL files from the repository
 COPY . .
 
-# ─── Build Stockfish (Ultra-Compatible ARCH) ──────────────────────────────────
-RUN git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
+# DEBUG: List all files to see what actually arrived from GitHub
+RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
+    ls -R /app && \
+    echo "---------------------------------"
+
+# ============================================================
+# DUAL-BRAIN ENGINE BUILD
+# ============================================================
+RUN echo "Cloning fresh engine source..." && \
+    git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
+
 WORKDIR /app/clean_engine/src
-# x86-64 is the MOST compatible build for any cloud environment (Hugging Face)
-RUN make -j$(nproc) build ARCH=x86-64 && \
+RUN make -j$(nproc) build ARCH=x86-64-modern && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
 
-# ─── Find & place launcher ────────────────────────────────────────────────────
+# ============================================================
+# LAUNCHER PREPARATION (The Search & Destroy Fix)
+# ============================================================
 WORKDIR /app
-RUN LAUNCHER=$(find /app -name "main.py" | head -n 1) && \
-    if [ -n "$LAUNCHER" ]; then \
-        echo "Launcher found: $LAUNCHER"; cp "$LAUNCHER" /app/launcher.py; \
+RUN echo "Searching for Launcher (main.py)..." && \
+    LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
+    if [ -n "$LAUNCHER_PATH" ]; then \
+        echo "Found launcher at: $LAUNCHER_PATH. Copying to root..."; \
+        cp "$LAUNCHER_PATH" /app/launcher.py; \
     else \
-        echo "CRITICAL: main.py not found!"; exit 1; \
+        echo "CRITICAL ERROR: main.py not found in the repository!"; \
+        exit 1; \
     fi
 
-# ─── NNUE files (Hard-linked for stability) ───────────────────────────────────
+# Map any NNUE files found in the repo
+RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
+
+# Failsafe Brains
 WORKDIR /app/engine
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    cp nn-9a0cc2a62c52.nnue brain.nnue
+RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
+    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
 
-# ─── Python deps ──────────────────────────────────────────────────────────────
+# ============================================================
+# BACKEND SETUP
+# ============================================================
 WORKDIR /app
-RUN pip install --no-cache-dir \
-    fastapi \
-    "uvicorn[standard]" \
-    uvloop \
-    python-chess \
-    pydantic \
-    websockets
+RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic websockets
 
-# ─── Runtime config ───────────────────────────────────────────────────────────
+# Set PYTHONPATH to include all potential source directories
 ENV PYTHONPATH="/app:/app/server"
-ENV ENGINE_PATH="/app/engine/deepcastle"
-ENV NNUE_PATH="/app/engine/brain.nnue"
-
 EXPOSE 7860
 
-# Production Entry Point
-CMD ["uvicorn", "launcher:app", "--host", "0.0.0.0", "--port", "7860"]
+# START: Use the guaranteed launcher in the root
+CMD ["python3", "/app/launcher.py"]
