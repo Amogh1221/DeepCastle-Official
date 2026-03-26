@@ -3,14 +3,10 @@ FROM python:3.12-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    make \
-    g++ \
     wget \
-    git \
-    findutils \
     curl \
     xz-utils \
+    findutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -19,62 +15,42 @@ WORKDIR /app
 # Copy ALL files from the repository
 COPY . .
 
-# DEBUG: List all files to see what actually arrived from GitHub
-RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
-    ls -R /app && \
-    echo "---------------------------------"
+# ============================================================
+# OFFICIAL STOCKFISH 17 BINARY (Ultra-Stable)
+# ============================================================
+RUN mkdir -p /app/engine && \
+    wget -O stockfish.tar.xz https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-sse41-popcnt.tar.xz && \
+    tar -xvf stockfish.tar.xz && \
+    cp stockfish/stockfish-ubuntu-x86-64-sse41-popcnt /app/engine/deepcastle && \
+    chmod +x /app/engine/deepcastle && \
+    rm -rf stockfish stockfish.tar.xz
 
 # ============================================================
-# DUAL-BRAIN ENGINE BUILD
+# LAUNCHER PREPARATION
 # ============================================================
-RUN echo "Cloning Stockfish 17 Stable branch..." && \
-    git clone --depth 1 --branch sf_17 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
-
-WORKDIR /app/clean_engine/src
-RUN make -j$(nproc) build ARCH=x86-64-modern && \
-    mkdir -p /app/engine && \
-    cp stockfish /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle
+RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
+    cp "$LAUNCHER_PATH" /app/launcher.py
 
 # ============================================================
-# LAUNCHER PREPARATION (The Search & Destroy Fix)
-# ============================================================
-WORKDIR /app
-RUN echo "Searching for Launcher (main.py)..." && \
-    LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
-    if [ -n "$LAUNCHER_PATH" ]; then \
-        echo "Found launcher at: $LAUNCHER_PATH. Copying to root..."; \
-        cp "$LAUNCHER_PATH" /app/launcher.py; \
-    else \
-        echo "CRITICAL ERROR: main.py not found in the repository!"; \
-        exit 1; \
-    fi
-
-# ============================================================
-# BRAIN PLACEMENT (The Custom Sync)
+# BRAIN PLACEMENT
 # ============================================================
 # Map your custom brain (output.nnue) correctly for the server
-RUN mkdir -p /app/engine && \
-    find /app -maxdepth 1 -name "*.nnue" -exec cp {} /app/engine/output.nnue \; || echo "No custom NNUE found."
+RUN find /app -maxdepth 1 -name "*.nnue" -exec cp {} /app/engine/output.nnue \; || echo "No custom NNUE found."
 
-# Download standard brains as fallback into the engine folder
-WORKDIR /app/engine
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue && \
-    chmod -R 777 /app/engine
+# Clear permissions for the engine folder
+RUN chmod -R 777 /app/engine
 
 # ============================================================
 # BACKEND SETUP
 # ============================================================
-WORKDIR /app
 RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
 
-# Explicit Paths for Engine & Brain
+# Explicit Paths
 ENV ENGINE_PATH=/app/engine/deepcastle
 ENV NNUE_PATH=/app/engine/output.nnue
 ENV PYTHONPATH="/app:/app/server"
 
 EXPOSE 7860
 
-# START: Use the guaranteed launcher in the root
+# START
 CMD ["python3", "/app/launcher.py"]
