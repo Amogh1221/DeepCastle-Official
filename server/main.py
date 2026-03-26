@@ -121,16 +121,43 @@ def health():
     return {"status": "ok", "engine": "Deepcastle"}
 
 async def get_engine():
+    print(f"[DEBUG] Starting engine at {ENGINE_PATH}")
     if not os.path.exists(ENGINE_PATH):
+        print(f"[ERROR] Engine binary NOT FOUND at {ENGINE_PATH}")
         raise HTTPException(status_code=500, detail="Engine binary not found")
-    transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+    
+    # Check NNUE File
     if os.path.exists(NNUE_PATH):
+        file_size = os.path.getsize(NNUE_PATH)
+        print(f"[DEBUG] NNUE file found at {NNUE_PATH} (Size: {file_size} bytes)")
+    else:
+        print(f"[DEBUG] NNUE file NOT FOUND at {NNUE_PATH}")
+
+    try:
+        # Start the process - capture exactly what happened
         try:
-            await engine.configure({"EvalFile": NNUE_PATH})
-            await engine.configure({"Hash": 512, "Threads": 2})
-        except Exception:
-            pass
-    return engine
+            transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        except Exception as e:
+            print(f"[ERROR] Engine process failed to start: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Engine start failed: {str(e)}")
+
+        print(f"[DEBUG] Engine started successfully: {engine.id.get('name', 'Unknown')}")
+        
+        if os.path.exists(NNUE_PATH):
+            try:
+                print(f"[DEBUG] Configuring EvalFile: {NNUE_PATH}")
+                await engine.configure({"EvalFile": NNUE_PATH})
+                print("[DEBUG] EvalFile configured successfully")
+                await engine.configure({"Hash": 512, "Threads": 2})
+            except Exception as e:
+                print(f"[ERROR] Failed to configure NNUE/Options: {str(e)}")
+                # If configuring the custom brain fails, we still return the engine
+                # so the site stays online even if the brain has issues.
+        
+        return engine
+    except Exception as e:
+        print(f"[CRITICAL ERROR] Engine died during initialization: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Engine crash: {str(e)}")
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
