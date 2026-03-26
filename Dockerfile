@@ -37,8 +37,8 @@ WORKDIR /app/src
 RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
     wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
 
-# Build from YOUR 'src/' folder
-RUN make -j$(nproc) build ARCH=x86-64 && \
+# Build from YOUR 'src/' folder - Using ARCH=generic for 100% safety
+RUN make -j$(nproc) build ARCH=generic && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
