@@ -130,8 +130,8 @@ async def get_engine():
         # Start the process
         transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
         
-        # Immediate basic configuration (Low resources for HF stability)
-        await engine.configure({"Hash": 32, "Threads": 1})
+        # Configure Engine (128MB Hash, Balanced for HF performance)
+        await engine.configure({"Hash": 128, "Threads": 1})
         
         if os.path.exists(NNUE_PATH):
             try:
@@ -141,9 +141,8 @@ async def get_engine():
             except Exception as e:
                 print(f"[ERROR] Failed to configure NNUE: {str(e)}")
         
-        # CRITICAL: Wait for engine to be actually ready
-        await engine.isready()
-        print(f"[DEBUG] Engine started successfully: {engine.id.get('name', 'Unknown')}")
+        # Confirmation log
+        print(f"[DEBUG] Engine initialized: {engine.id.get('name', 'Unknown')}")
         
         return engine
     except Exception as e:
