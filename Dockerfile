@@ -62,11 +62,11 @@ RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.o
 # BACKEND SETUP
 # ============================================================
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi "uvicorn[standard]" python-chess pydantic websockets
+RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
 
 # Set PYTHONPATH to include all potential source directories
 ENV PYTHONPATH="/app:/app/server"
 EXPOSE 7860
 
 # START: Use the guaranteed launcher in the root
-CMD ["uvicorn", "launcher:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python3", "/app/launcher.py"]
