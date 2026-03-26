@@ -363,7 +363,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       const loser = g.turn(); // whoever is to move is in checkmate
       const playerWon = loser === botChessColor;
       setGameResult({
-        title: playerWon ? "You Win!" : "DeepCastle Wins",
+        title: playerWon ? "You Win!" : "You Lose",
         subtitle: playerWon ? "Brilliant! You checkmated DeepCastle." : "Checkmate. DeepCastle wins.",
         isWin: playerWon,
       });
@@ -627,7 +627,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 <button
                   id="toggle-eval-bar"
                   onClick={() => setShowEvalBar(v => !v)}
-                  className="hidden sm:block text-slate-500 hover:text-slate-300 transition-colors"
+                  className="text-slate-500 hover:text-slate-300 transition-colors"
                   title={showEvalBar ? "Hide eval bar" : "Show eval bar"}
                 >
                   {showEvalBar ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}

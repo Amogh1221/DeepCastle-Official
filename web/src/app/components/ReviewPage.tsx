@@ -266,7 +266,7 @@ export function ReviewPage({
         <div className="w-full max-w-[1240px] mx-auto flex flex-col xl:flex-row gap-8">
 
           {/* LEFT: Board + Graph + Nav */}
-          <div className="flex flex-col gap-4 w-full xl:w-[600px] shrink-0">
+          <div className="flex flex-col gap-4 w-full xl:w-[540px] shrink-0">
 
             {/* Board row with eval bar */}
             <div className="flex gap-2 sm:gap-3">
@@ -391,7 +391,7 @@ export function ReviewPage({
           </div>
 
           {/* RIGHT: Move List & Analytics */}
-          <div className="flex flex-col gap-3 w-full xl:w-[440px] xl:min-w-[380px] xl:max-w-[480px]">
+          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px]">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -591,25 +591,30 @@ export function ReviewPage({
             )}
             {/* Nav controls & Actions (Desktop) */}
             <div className="hidden xl:flex flex-col gap-3 mt-auto pt-4 border-t border-white/5">
-              <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl p-1.5 focus-within:border-indigo-500/30 transition-all">
-                <button onClick={() => setCurrentPly(0)} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
-                  <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /><ChevronLeft className="w-4 h-4 -ml-2 group-hover:-translate-x-0.5 transition-transform" />
-                </button>
-                <button onClick={() => setCurrentPly(p => Math.max(0, p - 1))} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
-                  <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
-                </button>
+              <div className="flex items-center gap-2 transition-all">
+                {/* Space on left to push nav to right */}
+                <div className="flex-1" />
                 
-                <div className="px-4 flex flex-col items-center">
-                   <span className="text-sm font-black text-white">{currentPly}</span>
-                   <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">/ {moves.length}</span>
-                </div>
+                <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl p-1.5 focus-within:border-indigo-500/30 transition-all shrink-0">
+                  <button onClick={() => setCurrentPly(0)} className="px-4 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                    <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /><ChevronLeft className="w-4 h-4 -ml-2 group-hover:-translate-x-0.5 transition-transform" />
+                  </button>
+                  <button onClick={() => setCurrentPly(p => Math.max(0, p - 1))} className="px-5 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                    <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
+                  </button>
+                  
+                  <div className="px-6 flex flex-col items-center min-w-[80px]">
+                    <span className="text-sm font-black text-white">{currentPly}</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest whitespace-nowrap">/ {moves.length} MOVES</span>
+                  </div>
 
-                <button onClick={() => setCurrentPly(p => Math.min(moves.length, p + 1))} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
-                  <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <button onClick={() => setCurrentPly(moves.length)} className="flex-1 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /><ChevronRight className="w-4 h-4 -ml-2 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                  <button onClick={() => setCurrentPly(p => Math.min(moves.length, p + 1))} className="px-5 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                    <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                  <button onClick={() => setCurrentPly(moves.length)} className="px-4 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /><ChevronRight className="w-4 h-4 -ml-2 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-2">
