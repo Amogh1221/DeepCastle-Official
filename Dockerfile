@@ -1,72 +1,58 @@
-# Use Python 3.12 slim
+# ─── Base ─────────────────────────────────────────────────────────────────────
 FROM python:3.12-slim
 
-# Install system dependencies
+# System deps
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    make \
-    g++ \
-    wget \
-    git \
-    findutils \
-    curl \
-    xz-utils \
+    build-essential make g++ wget git curl xz-utils findutils \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
-
-# Copy ALL files from the repository
 COPY . .
 
-# DEBUG: List all files to see what actually arrived from GitHub
-RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
-    ls -R /app && \
-    echo "---------------------------------"
+# ─── Debug listing ────────────────────────────────────────────────────────────
+RUN echo "--- REPOSITORY CONTENT ---" && ls -R /app && echo "--------------------------"
 
-# ============================================================
-# DUAL-BRAIN ENGINE BUILD
-# ============================================================
-RUN echo "Cloning fresh engine source..." && \
-    git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
-
+# ─── Build Stockfish ──────────────────────────────────────────────────────────
+RUN git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
 WORKDIR /app/clean_engine/src
 RUN make -j$(nproc) build ARCH=x86-64-modern && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
     chmod +x /app/engine/deepcastle
 
-# ============================================================
-# LAUNCHER PREPARATION (The Search & Destroy Fix)
-# ============================================================
+# ─── Find & place launcher ────────────────────────────────────────────────────
 WORKDIR /app
-RUN echo "Searching for Launcher (main.py)..." && \
-    LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
-    if [ -n "$LAUNCHER_PATH" ]; then \
-        echo "Found launcher at: $LAUNCHER_PATH. Copying to root..."; \
-        cp "$LAUNCHER_PATH" /app/launcher.py; \
+RUN LAUNCHER=$(find /app -name "main.py" | head -n 1) && \
+    if [ -n "$LAUNCHER" ]; then \
+        echo "Launcher found: $LAUNCHER"; cp "$LAUNCHER" /app/launcher.py; \
     else \
-        echo "CRITICAL ERROR: main.py not found in the repository!"; \
-        exit 1; \
+        echo "CRITICAL: main.py not found!"; exit 1; \
     fi
 
-# Map any NNUE files found in the repo
-RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
+# ─── NNUE files ───────────────────────────────────────────────────────────────
+RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; 2>/dev/null || true
 
-# Failsafe Brains
 WORKDIR /app/engine
-RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
-    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
+RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then \
+        wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
+    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then \
+        wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
 
-# ============================================================
-# BACKEND SETUP
-# ============================================================
+# ─── Python deps ──────────────────────────────────────────────────────────────
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic websockets
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    uvloop \
+    python-chess \
+    pydantic \
+    websockets
 
-# Set PYTHONPATH to include all potential source directories
+# ─── Runtime config ───────────────────────────────────────────────────────────
 ENV PYTHONPATH="/app:/app/server"
+ENV ENGINE_PATH="/app/engine/deepcastle"
+ENV NNUE_PATH="/app/engine/output.nnue"
+
 EXPOSE 7860
 
-# START: Use the guaranteed launcher in the root
 CMD ["python3", "/app/launcher.py"]
