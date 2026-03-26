@@ -1,5 +1,4 @@
 "use client";
-// DeepCastle v7 (Stable Revert)
 import React, { useState, useEffect } from "react";
 import { Users, Copy, Check, X } from "lucide-react";
 import { Chess } from "chess.js";
@@ -62,11 +61,34 @@ export default function App() {
   // Share link popup (shown on top of GamePage when host creates a P2P game)
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const m = params.get("match");
-    if (m) setIncomingChallenge(m);
+    if (m) {
+      setIncomingChallenge(m);
+      
+      const t = params.get("t");
+      const i = params.get("i");
+      const v = params.get("v");
+      const hc = params.get("hc");
+      const fen = params.get("fen");
+      
+      if (t !== null && i !== null) {
+        setSettings(prev => ({
+          ...prev,
+          mode: "p2p",
+          matchId: m,
+          isJoiner: true,
+          playerColor: hc === "white" ? "black" : "white", // Joiner is opposite of host
+          variant: (v as any) || "standard",
+          startFen: fen || undefined,
+          matchSettings: {
+            timeLimit: parseInt(t),
+            increment: parseInt(i)
+          }
+        }));
+      }
+    }
   }, []);
 
   function handlePlay() { setPage("setup"); }
@@ -88,7 +110,7 @@ export default function App() {
       setPage("game");
       
       if (typeof window !== "undefined") {
-        const link = `${window.location.origin}?match=${mid}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}`;
+        const link = `${window.location.origin}?match=${mid}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}&t=${s.matchSettings.timeLimit}&i=${s.matchSettings.increment}`;
         setShareLink(link);
       }
     } else {
@@ -110,6 +132,8 @@ export default function App() {
       const hostColor = params.get("hc") as "white" | "black" | null;
       const joinerColor: "white" | "black" = hostColor === "white" ? "black" : "white";
       const variant = (params.get("v") || "standard") as "standard" | "chess960";
+      const t = params.get("t");
+      const i = params.get("i");
       const fen = params.get("fen");
       
       setSettings({
@@ -118,7 +142,10 @@ export default function App() {
         mode: "p2p",
         variant,
         startFen: fen || undefined,
-        matchSettings: { timeLimit: 0, increment: 0 },
+        matchSettings: { 
+          timeLimit: t !== null ? parseInt(t) : 10, 
+          increment: i !== null ? parseInt(i) : 0 
+        },
         matchId: incomingChallenge,
         isJoiner: true
       });

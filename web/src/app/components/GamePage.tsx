@@ -57,30 +57,30 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const cleanHost = API_URL.replace(/^https?:\/\//, "");
       const wsUrl = `${protocol}//${cleanHost}/ws/${settings.matchId}`;
-      
+
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
       socket.onopen = () => {
-         socket.send(JSON.stringify({ type: "join", color: playerColor }));
-         // If this player is the JOINER (they have a matchId from the URL but didn't
-         // create it), the host is already waiting — mark opponent as joined immediately.
-         // The host will mark opponentJoined when they receive our "join" message.
-         if (settings.isJoiner) {
-           setOpponentJoined(true);
-         }
+        socket.send(JSON.stringify({ type: "join", color: playerColor }));
+        // If this player is the JOINER (they have a matchId from the URL but didn't
+        // create it), the host is already waiting — mark opponent as joined immediately.
+        // The host will mark opponentJoined when they receive our "join" message.
+        if (settings.isJoiner) {
+          setOpponentJoined(true);
+        }
       };
 
       socket.onmessage = (event) => {
-         const data = JSON.parse(event.data);
-         if (data.type === "join") {
-            // Host receives this when joiner connects
-            setOpponentJoined(true);
-         } else if (data.type === "move") {
-            applyExternalMove(data.move);
-         } else if (data.type === "opponent_disconnected") {
-            endGame(true, "Opponent disconnected — you win!");
-         }
+        const data = JSON.parse(event.data);
+        if (data.type === "join") {
+          // Host receives this when joiner connects
+          setOpponentJoined(true);
+        } else if (data.type === "move") {
+          applyExternalMove(data.move);
+        } else if (data.type === "opponent_disconnected") {
+          endGame(true, "Opponent disconnected — you win!");
+        }
       };
 
       return () => socket.close();
@@ -216,13 +216,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         setFen(copy.fen());
         setMoveHistory(prev => [...prev, { san: mv.san, score: "OPP" }]);
         setIsPlayerTurn(true);
-        
+
         if (hasTimer) {
           // Opponent just moved
           if (playerChessColor === "w") setBlackTime(t => t + settings.matchSettings.increment);
           else setWhiteTime(t => t + settings.matchSettings.increment);
         }
-        
+
         if (copy.isGameOver()) handleGameOver(copy);
       }
     } catch (e) {
@@ -258,7 +258,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           });
           // Also sync eval bar score
           setStats(prev => ({ ...prev, score: data.score ?? prev.score, mateIn: data.mate_in ?? null }));
-          
+
           // Apply increment for bot
           if (hasTimer) {
             setBlackTime(t => t + settings.matchSettings.increment);
@@ -374,13 +374,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     if (mv) {
       gameRef.current = copy; setFen(copy.fen());
       setMoveHistory(prev => [...prev, { san: mv!.san, score: "USR" }]);
-      
+
       // Apply increment
       if (hasTimer) {
         if (playerChessColor === "w") setWhiteTime(t => t + settings.matchSettings.increment);
         else setBlackTime(t => t + settings.matchSettings.increment);
       }
-      
+
       setBotMessage("Thinking..."); setMoveFrom(null); setSquareStyles({}); setHintArrow(null);
       if (settings.mode === "p2p" && socketRef.current) socketRef.current.send(JSON.stringify({ type: "move", move: { from, to, promotion: "q" } }));
       if (copy.isGameOver()) { handleGameOver(copy); return true; }
@@ -492,7 +492,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
 
   return (
-    <main className="min-h-screen bg-[#111111] text-slate-100 flex items-center justify-center p-3">
+    <main className="min-h-screen bg-[#0a0a0c] text-slate-100 flex flex-col lg:items-center lg:justify-center p-0 lg:p-4 overflow-x-hidden">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-5" />
       </div>
@@ -555,157 +555,178 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         )}
       </AnimatePresence>
 
-      <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-10 gap-3 relative z-10">
+      <div className="w-full max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-4 p-2 sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[900px] relative z-10">
 
         {/* ── LEFT : BOARD ── */}
-        <div className="lg:col-span-6 flex flex-col gap-4">
+        <div className="w-full lg:w-[65%] flex flex-col gap-2 h-full">
 
           {/* Bot profile (top = opponent) */}
-          <div className="flex items-center justify-between p-3 bg-[#262421] rounded-lg border-b-2 border-slate-900 shadow-lg">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between p-2 sm:p-3 bg-[#1e1e22] rounded-xl border border-white/5 shadow-2xl">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <div className="relative">
-                <div className={`w-12 h-12 overflow-hidden rounded-lg flex items-center justify-center border-2 ${settings.mode === 'ai' ? 'border-white/10' : 'border-emerald-400'}`}>
-                  {settings.mode === "ai" ? <img src="/DC_logo.png" alt="DeepCastle" className="w-full h-full object-cover" /> : <Users className="w-8 h-8 text-white opacity-80" />}
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 overflow-hidden rounded-lg flex items-center justify-center border-2 ${settings.mode === 'ai' ? 'border-white/10' : 'border-emerald-400'}`}>
+                  {settings.mode === "ai" ? <img src="/DC_logo.png" alt="DeepCastle" className="w-full h-full object-cover" /> : <Users className="w-6 h-6 sm:w-8 sm:h-8 text-white opacity-80" />}
                 </div>
-                { (thinking || (!isPlayerTurn && settings.mode === "p2p")) && (
-                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                {(thinking || (!isPlayerTurn && settings.mode === "p2p")) && (
+                  <span className="absolute -bottom-1 -right-1 flex h-3 w-3 sm:h-4 sm:w-4">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#262421]" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-[#1e1e22]" />
                   </span>
                 )}
               </div>
-              <div>
-               <h3 className="font-black text-sm text-slate-100 flex items-center gap-2">
-                   {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
-                   <span className="text-orange-500 text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
-                     {settings.mode === "ai" ? "3600+ Elo" : "Joined"}
-                   </span>
-                 </h3>
-                 {settings.mode === "p2p" && !opponentJoined && <p className="text-[10px] text-amber-500 animate-pulse">Waiting for opponent...</p>}
-                 {/* Opponent's captured pieces */}
-                 {opponentCaptures.length > 0 && (
-                   <div className="flex items-center gap-1 mt-0.5">
-                     <span className="text-sm leading-none tracking-tighter text-slate-400">
-                       {opponentCaptures.map((p, i) => <span key={i}>{PIECE_SYMBOLS[p]}</span>)}
-                     </span>
-                     {-playerAdvantage > 0 && (
-                       <span className="text-[11px] font-bold text-slate-400">+{-playerAdvantage}</span>
-                     )}
-                   </div>
-                 )}
+              <div className="min-w-0">
+                <h3 className="font-black text-xs sm:text-sm text-slate-100 flex items-center gap-2 truncate">
+                  {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
+                  <span className="hidden sm:inline-block text-orange-500 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
+                    {settings.mode === "ai" ? "3600+ Elo" : "Joined"}
+                  </span>
+                </h3>
+                {settings.mode === "p2p" && !opponentJoined && <p className="text-[9px] sm:text-[10px] text-amber-500 animate-pulse">Waiting...</p>}
+                {/* Opponent's captured pieces */}
+                {opponentCaptures.length > 0 && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-sm leading-none tracking-tighter text-slate-400">
+                      {opponentCaptures.map((p, i) => <span key={i}>{PIECE_SYMBOLS[p]}</span>)}
+                    </span>
+                    {-playerAdvantage > 0 && (
+                      <span className="text-[11px] font-bold text-slate-400">+{-playerAdvantage}</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-4">
-               <div className="flex items-center gap-3 border-l border-white/10 pl-4">
-                  <button
-                    id="toggle-eval-bar"
-                    onClick={() => setShowEvalBar(v => !v)}
-                    className="text-slate-500 hover:text-slate-300 transition-colors"
-                    title={showEvalBar ? "Hide eval bar" : "Show eval bar"}
-                  >
-                    {showEvalBar ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  </button>
-                  <button onClick={onHome} className="text-slate-500 hover:text-slate-300 transition-colors" title="Back to home">
-                    <X className="w-4 h-4" />
-                  </button>
-               </div>
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 border-l border-white/10 pl-2 sm:pl-4">
+                {settings.matchSettings.timeLimit > 0 && (
+                  (() => {
+                    const oppTime = playerColor === "white" ? blackTime : whiteTime;
+                    return (
+                      <div className={`flex flex-col items-end ${oppTime <= 30 ? "text-red-400" : "text-white"}`}>
+                        <div className="bg-black/40 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-white/5 font-mono text-base sm:text-lg font-bold leading-none min-w-[70px] sm:min-w-[80px] text-center shadow-inner">
+                          {formatTime(oppTime)}
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+                <button
+                  id="toggle-eval-bar"
+                  onClick={() => setShowEvalBar(v => !v)}
+                  className="hidden sm:block text-slate-500 hover:text-slate-300 transition-colors"
+                  title={showEvalBar ? "Hide eval bar" : "Show eval bar"}
+                >
+                  {showEvalBar ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                </button>
+                <button onClick={onHome} className="text-slate-500 hover:text-slate-300 transition-colors p-1" title="Back to home">
+                  <X className="w-4 h-5" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Board + Eval Bar */}
-          <div className="flex gap-4 items-stretch">
+          <div className="flex gap-2 sm:gap-4 items-stretch flex-1 min-h-[350px]">
             {/* Eval bar */}
             <AnimatePresence>
               {showEvalBar && (
                 <motion.div
                   initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "1.75rem" }}
+                  animate={{ opacity: 1, width: "1.25rem" }}
                   exit={{ opacity: 0, width: 0 }}
-                  className="bg-[#161512] rounded-md flex flex-col overflow-hidden border border-slate-800 relative flex-shrink-0"
-                  style={{ width: "1.75rem" }}
+                  className="bg-[#161512] rounded-lg flex flex-col overflow-hidden border border-white/5 relative flex-shrink-0"
+                  style={{ width: "1.25rem" }}
                 >
                   {/* Black's portion (top) */}
                   <motion.div
                     animate={{ height: `${100 - evalBarFill}%` }}
-                    className="bg-[#1a1a1a] flex-shrink-0"
+                    className="bg-[#111114] flex-shrink-0"
                     transition={{ type: "spring", stiffness: 40, damping: 15 }}
                   />
                   {/* White's portion (bottom) */}
                   <motion.div
                     animate={{ height: `${evalBarFill}%` }}
-                    className="bg-gray-100 flex-shrink-0 relative"
+                    className="bg-slate-200 flex-shrink-0 relative"
                     transition={{ type: "spring", stiffness: 40, damping: 15 }}
                   >
-                    <div className="absolute bottom-1 w-full text-center text-[9px] font-black text-black opacity-50 leading-none">
+                    <div className="absolute bottom-1 w-full text-center text-[7px] sm:text-[9px] font-black text-black opacity-50 leading-none">
                       {evalLabel}
                     </div>
                   </motion.div>
-                  <div className="absolute top-1/2 w-full border-t border-slate-700 pointer-events-none" />
+                  <div className="absolute top-1/2 w-full border-t border-white/10 pointer-events-none" />
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="flex-1 bg-[#262421] p-3 rounded-lg shadow-2xl border-2 border-[#3d3a36]">
-               <Chessboard
-                 options={{
-                   id: "game-board",
-                   position: fen,
-                   squareStyles: squareStyles,
-                   darkSquareStyle: { backgroundColor: "#779556" },
-                   lightSquareStyle: { backgroundColor: "#ebecd0" },
-                   boardStyle: { borderRadius: "4px" },
-                   animationDurationInMs: 200,
-                   allowDragging: isPlayerTurn && !gameEnded,
-                   onPieceDrop: handlePieceDrop,
-                   onSquareClick: handleSquareClick,
-                   boardOrientation: playerColor,
-                   arrows: arrows,
-                 }}
-               />
+            <div className="flex-1 bg-[#1e1e22] p-1 sm:p-2 rounded-xl border border-white/10 shadow-2xl relative">
+              <Chessboard
+                options={{
+                  id: "game-board",
+                  position: fen,
+                  squareStyles: squareStyles,
+                  darkSquareStyle: { backgroundColor: "#779556" },
+                  lightSquareStyle: { backgroundColor: "#ebecd0" },
+                  boardStyle: { borderRadius: "4px" },
+                  animationDurationInMs: 200,
+                  allowDragging: isPlayerTurn && !gameEnded,
+                  onPieceDrop: handlePieceDrop,
+                  onSquareClick: handleSquareClick,
+                  boardOrientation: playerColor,
+                  arrows: arrows,
+                }}
+              />
             </div>
           </div>
 
-          {/* Player profile (bottom = player) */}
-          <div className="p-3 bg-[#262421] rounded-lg shadow-md border-t-2 border-slate-900 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center border border-slate-600">
-                <div className={`w-6 h-6 rounded-sm ${playerColor === "white" ? "bg-slate-200" : "bg-[#1a1a1a] border border-slate-600"}`} />
+          {/* Player profile (bottom) */}
+          <div className="flex items-center justify-between p-2 sm:p-3 bg-[#1e1e22] rounded-xl border border-white/5 shadow-2xl">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="relative">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 overflow-hidden rounded-lg bg-emerald-600 flex items-center justify-center border-2 border-emerald-400/30">
+                  <span className="text-white text-base sm:text-xl font-black">Y</span>
+                </div>
+                {isPlayerTurn && (
+                  <span className="absolute -bottom-1 -right-1 flex h-3 w-3 sm:h-4 sm:w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-[#1e1e22]" />
+                  </span>
+                )}
               </div>
-              <div>
-                <span className="font-bold text-sm tracking-tight">
-                  You{" "}
-                  <span className="text-xs text-slate-500">({playerColor})</span>
-                </span>
-                {/* Player's captured pieces */}
+              <div className="min-w-0">
+                <h3 className="font-black text-xs sm:text-sm text-slate-100 truncate">You ({playerColor.charAt(0).toUpperCase() + playerColor.slice(1)})</h3>
+                {/* Captured pieces by player */}
                 {playerCaptures.length > 0 && (
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="text-sm leading-none tracking-tighter text-slate-400">
                       {playerCaptures.map((p, i) => <span key={i}>{PIECE_SYMBOLS[p]}</span>)}
                     </span>
                     {playerAdvantage > 0 && (
-                      <span className="text-[11px] font-bold text-emerald-400">+{playerAdvantage}</span>
+                      <span className="text-[11px] font-bold text-slate-400">+{playerAdvantage}</span>
                     )}
                   </div>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-4">
-               {hasTimer && (
-                 <div className={`px-4 py-2 rounded-lg font-black text-lg tabular-nums border-2 transition-all ${
-                   (playerColor === "white" ? gameRef.current.turn() === "w" : gameRef.current.turn() === "b") 
-                   ? "bg-amber-500/20 border-amber-500/40 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.2)]" 
-                   : "bg-black/40 border-white/5 text-slate-400"
-                 }`}>
-                   {formatTime(playerColor === "white" ? whiteTime : blackTime)}
-                 </div>
-               )}
-               {thinking && <span className="text-xs text-emerald-400 animate-pulse font-semibold">Engine thinking…</span>}
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3 border-l border-white/10 pl-2 sm:pl-4">
+                {settings.matchSettings.timeLimit > 0 && (
+                  (() => {
+                    const pTime = playerColor === "white" ? whiteTime : blackTime;
+                    return (
+                      <div className={`flex flex-col items-end ${pTime <= 30 ? "text-red-400" : "text-white"}`}>
+                        <div className="bg-black/40 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-white/5 font-mono text-base sm:text-lg font-bold leading-none min-w-[70px] sm:min-w-[80px] text-center shadow-inner">
+                          {formatTime(pTime)}
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── RIGHT : PANEL ── */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-[450px] lg:min-h-0">
 
           {/* Bot Speech */}
           <section className="bg-[#262421] rounded-lg border border-[#3d3a36] shadow-xl">

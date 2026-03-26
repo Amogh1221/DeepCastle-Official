@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import {
-  RotateCcw, ChevronRight, ChevronLeft, Home, BarChart2, BookOpen, Zap, AlertTriangle, Check, X
+  RotateCcw, ChevronRight, ChevronLeft, Home, BarChart2, BookOpen, Zap, AlertTriangle
 } from "lucide-react";
 import { GameSettings } from "../types";
 
@@ -14,36 +14,60 @@ const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860
 
 // ── Classification colors / icons ──────────────────────────────────────────────
 const CLS_COLOR: Record<string, string> = {
-  Brilliant: "#2dd4bf", Best: "#10b981", Excellent: "#4ade80",
+  Brilliant: "#2dd4bf", Great: "#06b6d4", Best: "#10b981", Excellent: "#4ade80",
   Good: "#a3e635", Inaccuracy: "#fbbf24", Mistake: "#f97316", Blunder: "#ef4444",
   Book: "#a5f3fc",
 };
 const CLS_BG: Record<string, string> = {
-  Brilliant: "rgba(45,212,191,0.12)", Best: "rgba(16,185,129,0.12)",
+  Brilliant: "rgba(45,212,191,0.12)", Great: "rgba(6,182,212,0.12)", Best: "rgba(16,185,129,0.12)",
   Excellent: "rgba(74,222,128,0.12)", Good: "rgba(163,230,53,0.12)",
   Inaccuracy: "rgba(251,191,36,0.12)", Mistake: "rgba(249,115,22,0.12)", Blunder: "rgba(239,68,68,0.12)",
   Book: "rgba(165,243,252,0.12)",
 };
 const CLS_EMOJI: Record<string, string> = {
-  Brilliant: "✦", Best: "★", Excellent: "✓", Good: "·",
+  Brilliant: "✦", Great: "!!", Best: "★", Excellent: "✓", Good: "·",
   Inaccuracy: "?", Mistake: "?!", Blunder: "??",
   Book: "📖",
 };
 
+// Map classification to icon filename — covers all cases
+const getIconName = (cls: string): string => {
+  const map: Record<string, string> = {
+    "Brilliant": "splendid",
+    "Great": "perfect",
+    "Best": "best",
+    "Excellent": "excellent",
+    "Good": "okay",
+    "Inaccuracy": "inaccuracy",
+    "Mistake": "mistake",
+    "Blunder": "blunder",
+    "Book": "opening",
+    "Forced": "forced",
+  };
+  return map[cls] || "okay";
+};
+
 function clsBadge(cls: string) {
   return (
-    <span style={{ color: CLS_COLOR[cls] || "#94a3b8", background: CLS_BG[cls] }}
-      className="text-[10px] font-black px-1.5 py-0.5 rounded leading-none shrink-0">
-      {CLS_EMOJI[cls] || ""} {cls}
+    <span
+      style={{ color: CLS_COLOR[cls] || "#94a3b8", background: CLS_BG[cls] }}
+      className="text-[10px] font-black px-1.5 py-0.5 rounded leading-none shrink-0 inline-flex items-center gap-1"
+    >
+      <img
+        src={`/icons/${getIconName(cls)}.png`}
+        alt=""
+        className="w-3 h-3 inline-block"
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+      {cls}
     </span>
   );
 }
 
-// Fischer Random castling – chess.js needs startFen loaded
 function buildChess(startFen?: string) {
   const g = new Chess();
   if (startFen) {
-    try { g.load(startFen); } catch (e) {}
+    try { g.load(startFen); } catch (e) { }
   }
   return g;
 }
@@ -70,7 +94,7 @@ export function ReviewPage({
     const g = buildChess(settings.startFen);
     let moveObj: any = null;
     for (let i = 0; i < currentPly; i++) {
-      try { moveObj = g.move(moves[i]); } catch (e) {}
+      try { moveObj = g.move(moves[i]); } catch (e) { }
     }
     return { fen: g.fen(), lastMove: moveObj };
   }, [moves, currentPly, settings.startFen]);
@@ -153,7 +177,7 @@ export function ReviewPage({
           const s = data.score;
           setLiveEval(s !== undefined ? (s > 0 ? `+${s.toFixed(2)}` : s.toFixed(2)) : "");
         }
-      } catch {}
+      } catch { }
     })();
 
     return () => analysisAbortRef.current?.abort();
@@ -168,28 +192,21 @@ export function ReviewPage({
   // ── Derived data ───────────────────────────────────────────────────────────────
   const currentMove = analysis?.moves?.[currentPly - 1] ?? null;
 
-  // Build chart data: score from white's perspective, clamped
   const chartData = analysis
     ? [{ ply: 0, eval: 0 }, ...analysis.moves.map((m: any) => ({
-        ply: m.move_num,
-        eval: Math.max(-8, Math.min(8, m.score_after)),
-      }))]
+      ply: m.move_num,
+      eval: Math.max(-8, Math.min(8, m.score_after)),
+    }))]
     : [];
 
-  // Counts per classification
   const counts = analysis?.counts ?? {};
 
-  // Square styles
   const squareStyles: Record<string, React.CSSProperties> = {};
   if (lastMove) {
     squareStyles[lastMove.from] = { backgroundColor: "rgba(255,255,0,0.35)" };
     squareStyles[lastMove.to] = { backgroundColor: "rgba(255,255,0,0.35)" };
   }
-  if (currentMove?.classification && lastMove) {
-    // Icon is now rendered as an absolute overlay on the board div instead of a square background
-  }
 
-  // Arrows
   const reviewArrows: any[] = [];
   if (lastMove && currentMove?.classification) {
     const bad = ["Blunder", "Mistake", "Inaccuracy"].includes(currentMove.classification);
@@ -202,13 +219,17 @@ export function ReviewPage({
 
   const boardArrows = tab === "analysis" ? analysisArrows : reviewArrows;
 
-  // ── Render ─────────────────────────────────────────────────────────────────────
+  const evalNum = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
+  const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
+  const evalBarWhite = rawWinProb;
+  const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
+
   return (
-    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-center p-3">
+    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-start p-2 lg:p-4">
 
       {/* LOADING */}
       {loading && (
-        <div className="flex flex-col items-center gap-5">
+        <div className="flex flex-col items-center gap-5 mt-20">
           <div className="relative w-20 h-20">
             <div className="w-20 h-20 border-4 border-emerald-500/30 rounded-full" />
             <div className="absolute inset-0 w-20 h-20 border-4 border-t-emerald-400 rounded-full animate-spin" />
@@ -224,7 +245,7 @@ export function ReviewPage({
 
       {/* ERROR */}
       {!loading && error && (
-        <div className="flex flex-col items-center gap-6 max-w-sm text-center">
+        <div className="flex flex-col items-center gap-6 max-w-sm text-center mt-20">
           <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20">
             <AlertTriangle className="w-8 h-8 text-red-400" />
           </div>
@@ -239,72 +260,74 @@ export function ReviewPage({
         </div>
       )}
 
-      {/* MAIN BOARD */}
+      {/* MAIN CONTENT */}
       {!loading && !error && (
-        <div className="w-full max-w-[1100px] flex gap-3 h-[calc(100vh-2rem)]" style={{ maxHeight: "820px" }}>
+        <div className="w-full max-w-[1600px] flex flex-col xl:flex-row gap-4">
 
-          {/* LEFT: Board + Graph */}
-          <div className="flex flex-col gap-2" style={{ width: "52%" }}>
-            {/* Eval bar — vertical */}
-            <div className="flex gap-2 flex-1 min-h-0">
-              <div className="w-4 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 flex flex-col relative">
+          {/* LEFT: Board + Graph + Nav */}
+          <div className="flex flex-col gap-3 w-full xl:flex-1 xl:min-w-0">
+
+            {/* Board row with eval bar */}
+            <div className="flex gap-2 sm:gap-3">
+              {/* Eval bar */}
+              <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[250px]">
                 <div
-                  className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-300"
-                  style={{ height: `${(() => {
-                    const s = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
-                    return Math.max(5, Math.min(95, 50 - (s * 5)));
-                  })()}%` }}
+                  className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400"
+                  style={{ height: `${100 - evalBarWhite}%` }}
                 />
-                <div className="absolute bottom-0 left-0 w-full bg-[#1e1e22]" style={{ height: `${(() => {
-                  const s = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
-                  return Math.max(5, Math.min(95, 50 + (s * 5)));
-                })()}%` }} />
+                <div
+                  className="absolute bottom-0 left-0 w-full bg-[#161619]"
+                  style={{ height: `${evalBarWhite}%` }}
+                />
               </div>
 
               {/* Board */}
-              <div className="flex-1 aspect-square relative">
-                <Chessboard options={{
-                  position: currentFen,
-                  boardOrientation: flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor,
-                  animationDurationInMs: 150,
-                  darkSquareStyle: { backgroundColor: "#779556" },
-                  lightSquareStyle: { backgroundColor: "#ebecd0" },
-                  boardStyle: { borderRadius: "6px", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" },
-                  squareStyles,
-                  arrows: boardArrows,
-                }} />
+              <div className="flex-1 relative bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
+                <div className="aspect-square w-full relative">
+                  <Chessboard
+                    options={{
+                      position: currentFen,
+                      boardOrientation: orientation,
+                      squareStyles,
+                      arrows: boardArrows,
+                      animationDurationInMs: 300,
+                    }}
+                  />
 
-                {/* Classification Overlay on Top of Pieces */}
-                {currentMove?.classification && lastMove && tab !== "analysis" && (() => {
-                  const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
-                  const file = lastMove.to.charCodeAt(0) - 97;
-                  const rank = parseInt(lastMove.to[1]) - 1;
-                  const x = orientation === "white" ? file : 7 - file;
-                  const y = orientation === "white" ? 7 - rank : rank;
-                  return (
-                    <div
-                      className="absolute z-50 pointer-events-none"
-                      style={{
-                        width: "12.5%",
-                        height: "12.5%",
-                        left: `${x * 12.5}%`,
-                        top: `${y * 12.5}%`,
-                      }}
-                    >
-                      <img
-                        src={`/icons/${currentMove.classification === "Book" ? "opening" : currentMove.classification.toLowerCase()}.png`}
-                        alt={currentMove.classification}
-                        className="absolute -top-2.5 -right-2.5 w-6 h-6 drop-shadow-md z-[100]"
-                      />
-                    </div>
-                  );
-                })()}
+                  {/* Move Classification Icon Overlay */}
+                  {currentMove && lastMove && tab !== "analysis" && (
+                    (() => {
+                      const file = lastMove.to.charCodeAt(0) - 97;
+                      const rank = parseInt(lastMove.to[1]) - 1;
+                      const x = orientation === "white" ? file : 7 - file;
+                      const y = orientation === "white" ? 7 - rank : rank;
+                      return (
+                        <div
+                          className="absolute z-[100] pointer-events-none"
+                          style={{
+                            width: "12.5%",
+                            height: "12.5%",
+                            left: `${x * 12.5}%`,
+                            top: `${y * 12.5}%`,
+                          }}
+                        >
+                          <img
+                            src={`/icons/${getIconName(currentMove.classification)}.png`}
+                            alt={currentMove.classification}
+                            className="absolute -top-[20%] -right-[20%] w-[55%] h-[55%] min-w-[18px] min-h-[18px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] z-[200]"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Eval Graph */}
-            <div className="bg-[#1a1a1f] rounded-xl border border-white/5 p-2 h-28 shrink-0">
-              <div className="flex items-center justify-between mb-1 px-1">
+            <div className="h-20 sm:h-24 bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:p-4 shrink-0 relative">
+              <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Evaluation</span>
                 {tab === "analysis" && liveEval && (
                   <span className={`text-xs font-black ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
@@ -312,11 +335,11 @@ export function ReviewPage({
                   </span>
                 )}
               </div>
-              <ResponsiveContainer width="100%" height="80%">
+              <ResponsiveContainer width="100%" height="75%">
                 <AreaChart data={chartData} onClick={(e: any) => {
                   try {
                     if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
-                  } catch {}
+                  } catch { }
                 }} style={{ cursor: "pointer" }}>
                   <defs>
                     <linearGradient id="evalGrad" x1="0" y1="0" x2="0" y2="1">
@@ -332,7 +355,6 @@ export function ReviewPage({
                     labelStyle={{ display: "none" }}
                     formatter={(v: any) => [typeof v === "number" ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : v, "Eval"]}
                   />
-                  {/* Current ply marker */}
                   {currentPly > 0 && chartData[currentPly] && (
                     <ReferenceLine x={currentPly} stroke="rgba(255,255,255,0.3)" strokeWidth={2} />
                   )}
@@ -340,172 +362,6 @@ export function ReviewPage({
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
-
-          {/* RIGHT: Panel */}
-          <div className="flex flex-col gap-2 flex-1 min-h-0">
-            {/* Tabs */}
-            <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
-              <button onClick={() => setTab("review")}
-                className={`flex-1 py-2 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all ${tab === "review" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "text-slate-500 hover:text-slate-300"}`}>
-                <BarChart2 className="w-4 h-4" /> Game Review
-              </button>
-              <button onClick={() => setTab("analysis")}
-                className={`flex-1 py-2 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all ${tab === "analysis" ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-500 hover:text-slate-300"}`}>
-                <Zap className="w-4 h-4" /> Analysis
-              </button>
-            </div>
-
-            {/* REVIEW TAB */}
-            {tab === "review" && (
-              <div className="flex flex-col flex-1 min-h-0 bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden">
-                {/* Accuracy bar */}
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 shrink-0">
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Accuracy</span>
-                      <span className="text-xs font-black text-emerald-400">{analysis?.accuracy ?? "—"}%</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700"
-                        style={{ width: `${analysis?.accuracy ?? 0}%` }} />
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] text-slate-500 font-black uppercase">Perf ELO</p>
-                    <p className="text-sm font-black text-amber-400">{analysis?.estimated_elo ?? "—"}</p>
-                  </div>
-                </div>
-
-                {/* Classification summary pills */}
-                <div className="flex flex-wrap gap-1.5 px-4 py-2 border-b border-white/5 shrink-0">
-                  {Object.entries(CLS_COLOR).map(([cls]) =>
-                    (counts[cls] ?? 0) > 0 && (
-                      <span key={cls} style={{ color: CLS_COLOR[cls], background: CLS_BG[cls], borderColor: CLS_COLOR[cls] + "40", border: "1px solid" }}
-                        className="text-[10px] font-black px-2 py-0.5 rounded-full">
-                        {CLS_EMOJI[cls]} {cls} · {counts[cls]}
-                      </span>
-                    )
-                  )}
-                </div>
-
-                {/* Current move banner */}
-                <div className="px-4 py-2 border-b border-white/5 shrink-0 min-h-[44px] flex items-center">
-                  {currentMove ? (
-                    <div className="flex items-center gap-3 w-full">
-                      <span className="text-slate-400 text-xs w-8 shrink-0">
-                        {Math.ceil(currentPly / 2)}{currentPly % 2 !== 0 ? "." : "…"}
-                      </span>
-                      <div className="flex flex-col gap-1.5 px-1 py-1">
-                      <div className="flex items-center gap-2">
-                        {clsBadge(currentMove.classification)}
-                        <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
-                        <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
-                      </div>
-                      {currentMove.opening && (
-                        <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
-                          <BookOpen className="w-3 h-3 text-indigo-400" />
-                          <span className="text-[10px] font-bold text-indigo-300 truncate">{currentMove.opening}</span>
-                        </div>
-                      )}
-                    </div>
-                    </div>
-                  ) : (
-                    <span className="text-slate-500 text-xs">
-                      {currentPly === 0 ? "Starting position — navigate through moves" : "Navigate to see move analysis"}
-                    </span>
-                  )}
-                </div>
-
-                {/* Move list — scrollable */}
-                <div ref={moveListRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar">
-                  {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
-                    const whitePly = i * 2 + 1;
-                    const blackPly = i * 2 + 2;
-                    const whiteMove = moves[i * 2];
-                    const blackMove = moves[i * 2 + 1];
-                    const whiteAnalysis = analysis?.moves?.[i * 2];
-                    const blackAnalysis = analysis?.moves?.[i * 2 + 1];
-                    return (
-                      <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/3">
-                        <span className="text-slate-600 w-8 text-right shrink-0 pr-1">{i + 1}.</span>
-                        <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                          <span className="font-bold">{whiteMove}</span>
-                        </button>
-                        <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
-                          disabled={!blackMove}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                          <span className="font-bold">{blackMove || ""}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ANALYSIS TAB */}
-            {tab === "analysis" && (
-              <div className="flex flex-col flex-1 min-h-0 bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden">
-                {/* Live eval header */}
-                <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center gap-3">
-                  <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center border border-indigo-500/20">
-                    <Zap className="w-4 h-4 text-indigo-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-300">Live Engine Analysis</p>
-                    <p className="text-[10px] text-slate-500">Browse any position to see the best move</p>
-                  </div>
-                  {liveEval && (
-                    <span className={`ml-auto text-xl font-black ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
-                      {liveEval}
-                    </span>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 px-4 py-4 overflow-y-auto">
-                  <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-4 mb-4">
-                    <p className="text-xs font-black text-indigo-300 mb-1">How to use Analysis Mode</p>
-                    <ul className="text-xs text-slate-400 space-y-1.5 list-none">
-                      <li>🟢 Green arrow = Engine's best move</li>
-                      <li>⬅️ ➡️ Use keyboard arrows or buttons to navigate</li>
-                      <li>🔄 Click "Flip" to switch board perspective</li>
-                      <li>📊 The eval graph shows position score over time – click any point to jump there</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase text-slate-600 font-black tracking-widest">Position Info</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-black/20 rounded-lg p-3 border border-white/5">
-                        <p className="text-[9px] text-slate-500 uppercase font-black">Move</p>
-                        <p className="text-lg font-black text-white">{currentPly === 0 ? "Start" : `${Math.ceil(currentPly / 2)}${currentPly % 2 !== 0 ? "." : "…"}`}</p>
-                      </div>
-                      <div className="bg-black/20 rounded-lg p-3 border border-white/5">
-                        <p className="text-[9px] text-slate-500 uppercase font-black">Turn</p>
-                        <p className="text-lg font-black text-white">
-                          {currentFen.split(" ")[1] === "w" ? "⬜ White" : "⬛ Black"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {currentMove && (
-                    <div className="mt-4 bg-black/20 rounded-xl border border-white/5 p-3">
-                      <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2">Review Data for This Move</p>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white font-black text-base">{currentMove.san}</span>
-                        {clsBadge(currentMove.classification)}
-                      </div>
-                      <p className="text-xs text-slate-400">Centipawn loss: <span className="text-white font-bold">{Math.round(currentMove.cpl)}</span></p>
-                      <p className="text-xs text-slate-400">Score after: <span className={`font-bold ${currentMove.score_after > 0 ? "text-emerald-400" : "text-red-400"}`}>{currentMove.score_after > 0 ? "+" : ""}{currentMove.score_after.toFixed(2)}</span></p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Nav controls */}
             <div className="flex items-center gap-1 shrink-0">
@@ -531,6 +387,207 @@ export function ReviewPage({
                 <RotateCcw className="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          {/* RIGHT: Move List & Analytics */}
+          <div className="flex flex-col gap-3 w-full xl:w-[440px] xl:min-w-[380px] xl:max-w-[480px]">
+
+            {/* Tabs */}
+            <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
+              <button onClick={() => setTab("review")}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all ${tab === "review" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "text-slate-500 hover:text-slate-300"}`}>
+                <BarChart2 className="w-4 h-4" /> Game Review
+              </button>
+              <button onClick={() => setTab("analysis")}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all ${tab === "analysis" ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-500 hover:text-slate-300"}`}>
+                <Zap className="w-4 h-4" /> Analysis
+              </button>
+            </div>
+
+            {/* REVIEW TAB */}
+            {tab === "review" && (
+              <div className="flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden"
+                style={{ minHeight: "480px" }}>
+
+                {/* Accuracy + Elo */}
+                <div className="flex items-stretch border-b border-white/5 shrink-0">
+                  <div className="flex-1 px-4 py-3">
+                    <div className="flex justify-between mb-1.5">
+                      <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Accuracy</span>
+                      <span className="text-sm font-black text-emerald-400">{analysis?.accuracy ?? "—"}%</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700"
+                        style={{ width: `${analysis?.accuracy ?? 0}%` }} />
+                    </div>
+                  </div>
+                  <div className="border-l border-white/5 px-5 py-3 flex flex-col items-center justify-center shrink-0">
+                    <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Perf ELO</p>
+                    <p className="text-xl font-black text-amber-400">{analysis?.estimated_elo ?? "—"}</p>
+                  </div>
+                </div>
+
+                {/* Classification icon grid */}
+                <div className="grid grid-cols-4 sm:grid-cols-5 xl:grid-cols-4 gap-1.5 px-3 py-3 border-b border-white/5 shrink-0">
+                  {Object.entries(CLS_COLOR).map(([cls]) =>
+                    (counts[cls] ?? 0) > 0 ? (
+                      <div key={cls}
+                        style={{ borderColor: CLS_COLOR[cls] + "40", background: CLS_BG[cls] }}
+                        className="flex flex-col items-center justify-center py-2 rounded-lg border gap-1">
+                        <img
+                          src={`/icons/${getIconName(cls)}.png`}
+                          alt={cls}
+                          className="w-5 h-5"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <span style={{ color: CLS_COLOR[cls] }} className="text-sm font-black leading-none">{counts[cls]}</span>
+                        <span className="text-[9px] text-slate-500 font-bold truncate w-full text-center px-1">{cls}</span>
+                      </div>
+                    ) : null
+                  )}
+                </div>
+
+                {/* Current move banner */}
+                <div className="px-4 py-2.5 border-b border-white/5 shrink-0 min-h-[52px] flex items-center">
+                  {currentMove ? (
+                    <div className="flex items-start gap-3 w-full">
+                      <span className="text-slate-400 text-xs w-8 shrink-0 mt-0.5">
+                        {Math.ceil(currentPly / 2)}{currentPly % 2 !== 0 ? "." : "…"}
+                      </span>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {clsBadge(currentMove.classification)}
+                          <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
+                          <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
+                        </div>
+                        {currentMove.opening && (
+                          <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
+                            <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
+                            <span className="text-[10px] font-bold text-indigo-300 truncate">{currentMove.opening}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-500 text-xs">
+                      {currentPly === 0 ? "Starting position — navigate through moves" : "Navigate to see move analysis"}
+                    </span>
+                  )}
+                </div>
+
+                {/* Move list — scrollable */}
+                <div ref={moveListRef} className="overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar"
+                  style={{ maxHeight: "340px", minHeight: "200px" }}>
+                  {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
+                    const whitePly = i * 2 + 1;
+                    const blackPly = i * 2 + 2;
+                    const whiteMove = moves[i * 2];
+                    const blackMove = moves[i * 2 + 1];
+                    const whiteAnalysis = analysis?.moves?.[i * 2];
+                    const blackAnalysis = analysis?.moves?.[i * 2 + 1];
+                    return (
+                      <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/3">
+                        <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
+                        <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
+                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+                          {whiteAnalysis && (
+                            <img
+                              src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
+                              alt=""
+                              className="w-3.5 h-3.5 shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          )}
+                          <span className="font-bold">{whiteMove}</span>
+                        </button>
+                        <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
+                          disabled={!blackMove}
+                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+                          {blackAnalysis && (
+                            <img
+                              src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
+                              alt=""
+                              className="w-3.5 h-3.5 shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          )}
+                          <span className="font-bold">{blackMove || ""}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ANALYSIS TAB */}
+            {tab === "analysis" && (
+              <div className="flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden"
+                style={{ minHeight: "480px" }}>
+                {/* Live eval header */}
+                <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center border border-indigo-500/20 shrink-0">
+                    <Zap className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-300">Live Engine Analysis</p>
+                    <p className="text-[10px] text-slate-500">Browse any position to see the best move</p>
+                  </div>
+                  {liveEval && (
+                    <span className={`ml-auto text-xl font-black ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
+                      {liveEval}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex-1 px-4 py-4 overflow-y-auto space-y-4">
+                  <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-4">
+                    <p className="text-xs font-black text-indigo-300 mb-2">How to use Analysis Mode</p>
+                    <ul className="text-xs text-slate-400 space-y-1.5 list-none">
+                      <li>🟢 Green arrow = Engine's best move</li>
+                      <li>⬅️ ➡️ Use arrow keys or nav buttons to browse</li>
+                      <li>🔄 Tap Flip to switch board perspective</li>
+                      <li>📊 Click the graph to jump to any position</li>
+                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+                      <p className="text-[9px] text-slate-500 uppercase font-black">Move</p>
+                      <p className="text-lg font-black text-white">{currentPly === 0 ? "Start" : `${Math.ceil(currentPly / 2)}${currentPly % 2 !== 0 ? "." : "…"}`}</p>
+                    </div>
+                    <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+                      <p className="text-[9px] text-slate-500 uppercase font-black">Turn</p>
+                      <p className="text-lg font-black text-white">
+                        {currentFen.split(" ")[1] === "w" ? "⬜ White" : "⬛ Black"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {currentMove && (
+                    <div className="bg-black/20 rounded-xl border border-white/5 p-3">
+                      <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2">Review Data for This Move</p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-white font-black text-base">{currentMove.san}</span>
+                        {clsBadge(currentMove.classification)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-black/20 rounded-lg p-2 border border-white/5">
+                          <p className="text-[9px] text-slate-500 uppercase font-black">Centipawn Loss</p>
+                          <p className="text-sm font-black text-white">{Math.round(currentMove.cpl)}</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-2 border border-white/5">
+                          <p className="text-[9px] text-slate-500 uppercase font-black">Score After</p>
+                          <p className={`text-sm font-black ${currentMove.score_after > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {currentMove.score_after > 0 ? "+" : ""}{currentMove.score_after.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
