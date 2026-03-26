@@ -31,17 +31,17 @@ RUN mkdir -p /app/scripts && \
     echo '#!/bin/sh\nexit 0' > /app/scripts/net.sh && \
     chmod +x /app/scripts/net.sh
 
-WORKDIR /app/src
+WORKDIR /app/engine/src
 
 # Download required brains into src/ so they can be embedded during build
 RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
     wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
 
-# Build from YOUR 'src/' folder - Using ARCH=generic for 100% safety
-RUN make -j$(nproc) build ARCH=generic && \
-    mkdir -p /app/engine && \
-    cp stockfish /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle
+# Build from YOUR 'engine/src/' folder - ARCH=x86-64 is the official "Portable" build
+RUN make -j$(nproc) build ARCH=x86-64 && \
+    mkdir -p /app/engine_bin && \
+    cp stockfish /app/engine_bin/deepcastle && \
+    chmod +x /app/engine_bin/deepcastle
 
 # ============================================================
 # LAUNCHER PREPARATION (The Search & Destroy Fix)
