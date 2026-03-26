@@ -1,6 +1,5 @@
 # Use Python 3.12 slim
 FROM python:3.12-slim
-
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -12,38 +11,24 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
-
 # Copy ALL files from the repository
 COPY . .
-
 # DEBUG: List all files to see what actually arrived from GitHub
 RUN echo "--- REPOSITORY CONTENT DEBUG ---" && \
     ls -R /app && \
     echo "---------------------------------"
-
-# BUILD YOUR CUSTOM ENGINE (The Source Fix)
 # ============================================================
-# Create a dummy net.sh to bypass the missing script error
-RUN mkdir -p /app/scripts && \
-    echo '#!/bin/sh\nexit 0' > /app/scripts/net.sh && \
-    chmod +x /app/scripts/net.sh
-
-WORKDIR /app/src
-
-# Download required brains into src/ so they can be embedded during build (incbin)
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
-
-# Build from the detected 'src/' folder - ARCH=general-64 is the absolute safest build
-RUN make -j$(nproc) all ARCH=general-64 && \
+# DUAL-BRAIN ENGINE BUILD
+# ============================================================
+RUN echo "Cloning fresh engine source..." && \
+    git clone --depth 1 https://github.com/official-stockfish/Stockfish.git /app/clean_engine
+WORKDIR /app/clean_engine/src
+RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
     mkdir -p /app/engine && \
     cp stockfish /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle && \
-    cp *.nnue /app/engine/
-
+    chmod +x /app/engine/deepcastle
 # ============================================================
 # LAUNCHER PREPARATION (The Search & Destroy Fix)
 # ============================================================
@@ -57,25 +42,19 @@ RUN echo "Searching for Launcher (main.py)..." && \
         echo "CRITICAL ERROR: main.py not found in the repository!"; \
         exit 1; \
     fi
-
-# ============================================================
-# BRAIN PLACEMENT (The Custom Sync)
-# ============================================================
+# Map any NNUE files found in the repo
+RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
+# Failsafe Brains
 WORKDIR /app/engine
-
-# Download ALL brains into the final folder for runtime search safety
-RUN cp /app/src/*.nnue /app/engine/ && \
-    wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
-
+RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
+    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
 # ============================================================
 # BACKEND SETUP
 # ============================================================
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic websockets
-
+RUN pip install --no-cache-dir fastapi uvicorn python-chess pydantic
 # Set PYTHONPATH to include all potential source directories
 ENV PYTHONPATH="/app:/app/server"
 EXPOSE 7860
-
 # START: Use the guaranteed launcher in the root
 CMD ["python3", "/app/launcher.py"]

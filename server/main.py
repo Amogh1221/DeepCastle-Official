@@ -121,33 +121,16 @@ def health():
     return {"status": "ok", "engine": "Deepcastle"}
 
 async def get_engine():
-    print(f"[DEBUG] Starting engine at {ENGINE_PATH}")
     if not os.path.exists(ENGINE_PATH):
-        print(f"[ERROR] Engine binary NOT FOUND at {ENGINE_PATH}")
         raise HTTPException(status_code=500, detail="Engine binary not found")
-    
-    try:
-        # Start the process
-        transport, engine = await chess.engine.popen_uci(str(ENGINE_PATH))
-        
-        # Configure Engine (128MB Hash, Balanced for HF performance)
-        await engine.configure({"Hash": 64, "Threads": 1})
-        
-        if os.path.exists(NNUE_PATH):
-            try:
-                print(f"[DEBUG] Configuring EvalFile: {NNUE_PATH}")
-                await engine.configure({"EvalFile": str(NNUE_PATH)})
-                print("[DEBUG] EvalFile configured successfully")
-            except Exception as e:
-                print(f"[ERROR] Failed to configure NNUE: {str(e)}")
-        
-        # Confirmation log
-        print(f"[DEBUG] Engine initialized: {engine.id.get('name', 'Unknown')}")
-        
-        return engine
-    except Exception as e:
-        print(f"[CRITICAL ERROR] Engine died during initialization: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Engine crash: {str(e)}")
+    transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+    if os.path.exists(NNUE_PATH):
+        try:
+            await engine.configure({"EvalFile": NNUE_PATH})
+            await engine.configure({"Hash": 512, "Threads": 2})
+        except Exception:
+            pass
+    return engine
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
@@ -168,13 +151,8 @@ async def get_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
-        # Only do ONE call to get both result and info if possible
-        # but for simplicity in your logic, we keep them sequential but ensure they are fast
         result = await engine.play(board, limit)
-        
-        # Limit the depth of analysis to be extra fast
-        analysis_limit = chess.engine.Limit(time=0.05, depth=limit.depth or 10)
-        info = await engine.analyse(board, analysis_limit)
+        info = await engine.analyse(board, limit)
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
