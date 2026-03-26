@@ -3,6 +3,9 @@ FROM python:3.12-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    build-essential \
+    make \
+    g++ \
     wget \
     curl \
     xz-utils \
@@ -16,18 +19,18 @@ WORKDIR /app
 COPY . .
 
 # ============================================================
-# OFFICIAL STOCKFISH 17 BINARY (Ultra-Stable)
+# CUSTOM DEEPCASTLE ENGINE BUILD (From your src)
 # ============================================================
-RUN mkdir -p /app/engine && \
-    wget -O stockfish.tar.xz https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-sse41-popcnt.tar.xz && \
-    tar -xvf stockfish.tar.xz && \
-    cp stockfish/stockfish-ubuntu-x86-64-sse41-popcnt /app/engine/deepcastle && \
-    chmod +x /app/engine/deepcastle && \
-    rm -rf stockfish stockfish.tar.xz
+WORKDIR /app/engine/src
+RUN make -j$(nproc) build ARCH=x86-64-modern && \
+    mkdir -p /app/engine_bin && \
+    cp stockfish /app/engine_bin/deepcastle && \
+    chmod +x /app/engine_bin/deepcastle
 
 # ============================================================
 # LAUNCHER PREPARATION
 # ============================================================
+WORKDIR /app
 RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
     cp "$LAUNCHER_PATH" /app/launcher.py
 
@@ -35,19 +38,19 @@ RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
 # BRAIN PLACEMENT
 # ============================================================
 # Map your custom brain (output.nnue) correctly for the server
-RUN find /app -maxdepth 1 -name "*.nnue" -exec cp {} /app/engine/output.nnue \; || echo "No custom NNUE found."
+RUN find /app -maxdepth 2 -name "*.nnue" -exec cp {} /app/engine_bin/output.nnue \; || echo "No custom NNUE found."
 
-# Clear permissions for the engine folder
-RUN chmod -R 777 /app/engine
+# Force permissions for the binary and brain
+RUN chmod -R 777 /app/engine_bin
 
 # ============================================================
 # BACKEND SETUP
 # ============================================================
 RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
 
-# Explicit Paths
-ENV ENGINE_PATH=/app/engine/deepcastle
-ENV NNUE_PATH=/app/engine/output.nnue
+# Explicit Paths for DeepCastle
+ENV ENGINE_PATH=/app/engine_bin/deepcastle
+ENV NNUE_PATH=/app/engine_bin/output.nnue
 ENV PYTHONPATH="/app:/app/server"
 
 EXPOSE 7860
