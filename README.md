@@ -234,5 +234,3 @@ uvicorn main:app --reload
 - **Incbin:** [graphitemaster/incbin](https://github.com/graphitemaster/incbin) — UNLICENCE.
 
 ---
-
-*Developed by Amogh Gupta & Antigravity AI*
