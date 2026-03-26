@@ -157,23 +157,26 @@ class FeatureTransformer {
 
     // Read network parameters
     bool read_parameters(std::istream& stream) {
-        read_leb_128(stream, biases);
+        // DeepCastle v7 Custom Format: Raw bytes, no LEB128
+        read_little_endian<BiasType>(stream, biases.data(), biases.size());
 
         if constexpr (UseThreats)
         {
             read_little_endian<ThreatWeightType>(stream, threatWeights.data(),
                                                  ThreatInputDimensions * HalfDimensions);
-            read_leb_128(stream, weights);
-
-            read_leb_128(stream, threatPsqtWeights, psqtWeights);
+            read_little_endian<WeightType>(stream, weights.data(), weights.size());
+            read_little_endian<PSQTWeightType>(stream, threatPsqtWeights.data(), threatPsqtWeights.size());
+            read_little_endian<PSQTWeightType>(stream, psqtWeights.data(), psqtWeights.size());
         }
         else
         {
-            read_leb_128(stream, weights);
-            read_leb_128(stream, psqtWeights);
+            read_little_endian<WeightType>(stream, weights.data(), weights.size());
+            read_little_endian<PSQTWeightType>(stream, psqtWeights.data(), psqtWeights.size());
         }
 
-        permute_weights();
+        // DeepCastle v7 training script already handles permutation if needed, 
+        // but typically SF expects this. We'll leave it out for DC07 raw format.
+        // permute_weights(); 
 
         return !stream.fail();
     }

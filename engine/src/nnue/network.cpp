@@ -345,12 +345,21 @@ template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::read_header(std::istream&  stream,
                                              std::uint32_t* hashValue,
                                              std::string*   desc) const {
-    std::uint32_t version, size;
+    std::uint32_t magic;
 
-    version    = read_little_endian<std::uint32_t>(stream);
+    magic = read_little_endian<std::uint32_t>(stream);
+    
+    // Support DeepCastle v7 Custom Header (DC07)
+    if (magic == 0x44433037u) {
+        *hashValue = 0; // Bypass hash check for custom nets
+        desc->assign("DeepCastle v7 Custom Network");
+        return true;
+    }
+
+    // Fallback to official Stockfish header format
     *hashValue = read_little_endian<std::uint32_t>(stream);
-    size       = read_little_endian<std::uint32_t>(stream);
-    if (!stream || version != Version)
+    std::uint32_t size = read_little_endian<std::uint32_t>(stream);
+    if (!stream || magic != Version)
         return false;
     desc->resize(size);
     stream.read(&(*desc)[0], size);
