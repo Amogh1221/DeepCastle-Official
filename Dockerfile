@@ -50,13 +50,17 @@ RUN echo "Searching for Launcher (main.py)..." && \
         exit 1; \
     fi
 
-# Map any NNUE files found in the repo
-RUN find /app -name "*.nnue" -exec cp {} /app/engine/custom_big.nnue \; || echo "No custom NNUE found."
-
-# Failsafe Brains
+# ============================================================
+# BRAIN PLACEMENT (The Neural Sync)
+# ============================================================
 WORKDIR /app/engine
-RUN if [ ! -f "nn-9a0cc2a62c52.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue; fi && \
-    if [ ! -f "nn-47fc8b7fff06.nnue" ]; then wget https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue; fi
+
+# Download your trained brain directly from HF Space to be 100% sure it exists
+RUN wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
+
+# Also download failsafe stockfish brains (backup)
+RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
 
 # ============================================================
 # BACKEND SETUP
