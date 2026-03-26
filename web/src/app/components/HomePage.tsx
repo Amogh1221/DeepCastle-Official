@@ -112,18 +112,6 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
       </div>
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        {/* GitHub Link */}
-        <div className="absolute top-0 right-4 sm:right-6">
-          <a
-            href="https://github.com/Amogh1221/DeepCastle-Official"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-400 hover:text-white transition-all text-[10px] font-black uppercase tracking-wider"
-          >
-            <GithubLogo className="w-3.5 h-3.5" />
-            GitHub
-          </a>
-        </div>
 
         {/* ── Hero ── */}
         <motion.div
@@ -257,6 +245,18 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           className="flex flex-col items-center gap-3 pb-8"
         >
           <p className="text-xs text-slate-700">No account needed · Play directly in browser</p>
+          
+          <div className="mt-4">
+            <a
+              href="https://github.com/Amogh1221/DeepCastle-Official"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-slate-400 hover:text-white transition-all text-[10px] font-black uppercase tracking-[0.2em]"
+            >
+              <GithubLogo className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+              Source on GitHub
+            </a>
+          </div>
         </motion.div>
       </div>
     </main>
