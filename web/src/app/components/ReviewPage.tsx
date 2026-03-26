@@ -392,7 +392,7 @@ export function ReviewPage({
           </div>
 
           {/* RIGHT: Move List & Analytics */}
-          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px] xl:h-[800px]">
+          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px]">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -530,10 +530,9 @@ export function ReviewPage({
                       })}
                     </div>
                   ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 opacity-40 text-center">
+                    <div className="flex flex-col items-center justify-center py-10 opacity-40 text-center">
                        <Zap className="w-8 h-8 mb-2 text-indigo-400" />
                        <p className="text-xs font-bold text-slate-400">Move list is hidden</p>
-                       <p className="text-[10px] text-slate-600 uppercase mt-1">Click show to reveal</p>
                     </div>
                   )}
                 </div>
