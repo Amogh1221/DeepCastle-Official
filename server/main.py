@@ -126,33 +126,24 @@ async def get_engine():
         print(f"[ERROR] Engine binary NOT FOUND at {ENGINE_PATH}")
         raise HTTPException(status_code=500, detail="Engine binary not found")
     
-    # Check NNUE File
-    if os.path.exists(NNUE_PATH):
-        file_size = os.path.getsize(NNUE_PATH)
-        print(f"[DEBUG] NNUE file found at {NNUE_PATH} (Size: {file_size} bytes)")
-    else:
-        print(f"[DEBUG] NNUE file NOT FOUND at {NNUE_PATH}")
-
     try:
-        # Start the process - capture exactly what happened
-        try:
-            transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
-        except Exception as e:
-            print(f"[ERROR] Engine process failed to start: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Engine start failed: {str(e)}")
-
-        print(f"[DEBUG] Engine started successfully: {engine.id.get('name', 'Unknown')}")
+        # Start the process
+        transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        
+        # Immediate basic configuration (Low resources for HF stability)
+        await engine.configure({"Hash": 32, "Threads": 1})
         
         if os.path.exists(NNUE_PATH):
             try:
                 print(f"[DEBUG] Configuring EvalFile: {NNUE_PATH}")
                 await engine.configure({"EvalFile": NNUE_PATH})
                 print("[DEBUG] EvalFile configured successfully")
-                await engine.configure({"Hash": 512, "Threads": 2})
             except Exception as e:
-                print(f"[ERROR] Failed to configure NNUE/Options: {str(e)}")
-                # If configuring the custom brain fails, we still return the engine
-                # so the site stays online even if the brain has issues.
+                print(f"[ERROR] Failed to configure NNUE: {str(e)}")
+        
+        # CRITICAL: Wait for engine to be actually ready
+        await engine.isready()
+        print(f"[DEBUG] Engine started successfully: {engine.id.get('name', 'Unknown')}")
         
         return engine
     except Exception as e:
@@ -178,8 +169,13 @@ async def get_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
+        # Only do ONE call to get both result and info if possible
+        # but for simplicity in your logic, we keep them sequential but ensure they are fast
         result = await engine.play(board, limit)
-        info = await engine.analyse(board, limit)
+        
+        # Limit the depth of analysis to be extra fast
+        analysis_limit = chess.engine.Limit(time=0.05, depth=limit.depth or 10)
+        info = await engine.analyse(board, analysis_limit)
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
