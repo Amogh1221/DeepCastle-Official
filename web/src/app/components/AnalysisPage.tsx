@@ -136,6 +136,9 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
 
   // Scroll active move into view in move list
   useEffect(() => {
+    // Don't auto-scroll on small screens to avoid jumping the whole window
+    if (typeof window !== "undefined" && window.innerWidth < 1280) return;
+
     const el = moveListRef.current?.querySelector(`[data-idx="${currentIdx}"]`);
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [currentIdx]);

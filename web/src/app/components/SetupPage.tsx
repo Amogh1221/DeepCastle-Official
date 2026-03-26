@@ -144,39 +144,39 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                 </div>
               </div>
             ) : (
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
-                      <span>Limit (min)</span>
-                      <span className="text-indigo-400 font-bold">{timeLimit}m</span>
-                    </label>
-                    <select
-                      value={timeLimit}
-                      onChange={(e) => setTimeLimit(parseInt(e.target.value))}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
-                    >
-                      {[1, 3, 5, 10, 20, 30, 60, 90].map(m => (
-                        <option key={m} value={m} className="bg-[#1a1a1f]">{m} min</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
-                      <span>Inc (sec)</span>
-                      <span className="text-indigo-400 font-bold">+{increment}s</span>
-                    </label>
-                    <select
-                      value={increment}
-                      onChange={(e) => setIncrement(parseInt(e.target.value))}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
-                    >
-                      {[0, 1, 2, 3, 5, 10, 30].map(s => (
-                        <option key={s} value={s} className="bg-[#1a1a1f]">{s} sec</option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
+                    <span>Limit (min)</span>
+                    <span className="text-indigo-400 font-bold">{timeLimit}m</span>
+                  </label>
+                  <select
+                    value={timeLimit}
+                    onChange={(e) => setTimeLimit(parseInt(e.target.value))}
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
+                  >
+                    {[1, 3, 5, 10, 20, 30, 60, 90].map(m => (
+                      <option key={m} value={m} className="bg-[#1a1a1f]">{m} min</option>
+                    ))}
+                  </select>
                 </div>
+
+                <div className="flex-1">
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest mb-4 block flex items-center justify-between">
+                    <span>Inc (sec)</span>
+                    <span className="text-indigo-400 font-bold">+{increment}s</span>
+                  </label>
+                  <select
+                    value={increment}
+                    onChange={(e) => setIncrement(parseInt(e.target.value))}
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
+                  >
+                    {[0, 1, 2, 3, 5, 10, 30, 60].map(s => (
+                      <option key={s} value={s} className="bg-[#1a1a1f]">{s} sec</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
           </div>
 

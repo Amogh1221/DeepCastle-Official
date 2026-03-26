@@ -89,10 +89,27 @@ export default function App() {
         }));
       }
     }
+
+    // Push initial state
+    if (!window.history.state) {
+      window.history.replaceState({ page: "home" }, "", "");
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.page) setPage(e.state.page);
+      else setPage("home");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  function handlePlay() { setPage("setup"); }
-  function handleBack() { setPage("home"); }
+  function navigateTo(newPage: AppPage) {
+    setPage(newPage);
+    window.history.pushState({ page: newPage }, "", "");
+  }
+
+  function handlePlay() { navigateTo("setup"); }
+  function handleBack() { navigateTo("home"); }
 
   function handleStart(s: GameSettings) {
     let finalSettings = { ...s };
@@ -107,7 +124,7 @@ export default function App() {
       finalSettings.matchId = mid;
       
       setSettings(finalSettings);
-      setPage("game");
+      navigateTo("game");
       
       if (typeof window !== "undefined") {
         const link = `${window.location.origin}?match=${mid}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}&t=${s.matchSettings.timeLimit}&i=${s.matchSettings.increment}`;
@@ -115,7 +132,7 @@ export default function App() {
       }
     } else {
       setSettings(finalSettings);
-      setPage("game");
+      navigateTo("game");
     }
   }
 
@@ -149,16 +166,16 @@ export default function App() {
         matchId: incomingChallenge,
         isJoiner: true
       });
-      setPage("game");
+      navigateTo("game");
       setIncomingChallenge(null);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }
 
-  function handleHome() { setPage("home"); setShareLink(null); }
-  function handleRematch() { setPage("setup"); setShareLink(null); }
-  function handleReview(moves: string[]) { setReviewMoves(moves); setPage("review"); setShareLink(null); }
-  function handleAnalysis() { setPage("analysis"); }
+  function handleHome() { navigateTo("home"); setShareLink(null); }
+  function handleRematch() { navigateTo("setup"); setShareLink(null); }
+  function handleReview(moves: string[]) { setReviewMoves(moves); navigateTo("review"); setShareLink(null); }
+  function handleAnalysis() { navigateTo("analysis"); }
 
   return (
     <div className="relative">
