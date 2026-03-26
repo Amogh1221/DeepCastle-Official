@@ -81,6 +81,7 @@ export function ReviewPage({
   const [flipped, setFlipped] = useState(settings.playerColor === "black");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"review" | "analysis">("review");
+  const [showMoveList, setShowMoveList] = useState(false);
 
   // Analysis-mode live eval
   const [analysisArrows, setAnalysisArrows] = useState<any[]>([]);
@@ -475,46 +476,66 @@ export function ReviewPage({
                   )}
                 </div>
 
-                {/* Move list — scrollable */}
-                <div ref={moveListRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar min-h-0">
-                  {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
-                    const whitePly = i * 2 + 1;
-                    const blackPly = i * 2 + 2;
-                    const whiteMove = moves[i * 2];
-                    const blackMove = moves[i * 2 + 1];
-                    const whiteAnalysis = analysis?.moves?.[i * 2];
-                    const blackAnalysis = analysis?.moves?.[i * 2 + 1];
-                    return (
-                      <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/3">
-                        <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
-                        <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                          {whiteAnalysis && (
-                            <img
-                              src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
-                              alt=""
-                              className="w-3.5 h-3.5 shrink-0"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                            />
-                          )}
-                          <span className="font-bold">{whiteMove}</span>
-                        </button>
-                        <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
-                          disabled={!blackMove}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                          {blackAnalysis && (
-                            <img
-                              src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
-                              alt=""
-                              className="w-3.5 h-3.5 shrink-0"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                            />
-                          )}
-                          <span className="font-bold">{blackMove || ""}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
+                {/* Move list — conditional */}
+                <div className="flex-1 flex flex-col min-h-0 bg-black/10">
+                  <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between shrink-0">
+                    <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Move History</span>
+                    <button
+                      onClick={() => setShowMoveList(!showMoveList)}
+                      className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${showMoveList ? "bg-indigo-500 text-white" : "bg-white/5 text-slate-400 hover:text-white"}`}
+                    >
+                      {showMoveList ? "Hide" : "Show"}
+                    </button>
+                  </div>
+
+                  {showMoveList ? (
+                    <div ref={moveListRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar min-h-0">
+                      {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
+                        const whitePly = i * 2 + 1;
+                        const blackPly = i * 2 + 2;
+                        const whiteMove = moves[i * 2];
+                        const blackMove = moves[i * 2 + 1];
+                        const whiteAnalysis = analysis?.moves?.[i * 2];
+                        const blackAnalysis = analysis?.moves?.[i * 2 + 1];
+                        return (
+                          <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/3">
+                            <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
+                            <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
+                              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+                              {whiteAnalysis && (
+                                <img
+                                  src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
+                                  alt=""
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
+                              )}
+                              <span className="font-bold">{whiteMove}</span>
+                            </button>
+                            <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
+                              disabled={!blackMove}
+                              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+                              {blackAnalysis && (
+                                <img
+                                  src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
+                                  alt=""
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
+                              )}
+                              <span className="font-bold">{blackMove || ""}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 opacity-40 text-center">
+                       <Zap className="w-8 h-8 mb-2 text-indigo-400" />
+                       <p className="text-xs font-bold text-slate-400">Move list is hidden</p>
+                       <p className="text-[10px] text-slate-600 uppercase mt-1">Click show to reveal</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

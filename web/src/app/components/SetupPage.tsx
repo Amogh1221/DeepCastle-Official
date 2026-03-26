@@ -150,19 +150,15 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                     <span>Time Limit (min)</span>
                     <span className="text-indigo-400 font-bold">{timeLimit}m</span>
                   </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="90"
+                  <select
                     value={timeLimit}
                     onChange={(e) => setTimeLimit(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                  />
-                  <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-700">
-                    <span>1 min</span>
-                    <span>45 min</span>
-                    <span>90 min</span>
-                  </div>
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
+                  >
+                    {[1, 3, 5, 10, 20, 30, 60, 90].map(m => (
+                      <option key={m} value={m} className="bg-[#1a1a1f]">{m} min</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -170,19 +166,15 @@ export function SetupPage({ onStart, onBack }: { onStart: (s: GameSettings) => v
                     <span>Increment (sec)</span>
                     <span className="text-indigo-400 font-bold">+{increment}s</span>
                   </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="30"
+                  <select
                     value={increment}
                     onChange={(e) => setIncrement(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                  />
-                  <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-700">
-                    <span>0 sec</span>
-                    <span>15 sec</span>
-                    <span>30 sec</span>
-                  </div>
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
+                  >
+                    {[0, 1, 2, 3, 5, 10, 30].map(s => (
+                      <option key={s} value={s} className="bg-[#1a1a1f]">{s} sec</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

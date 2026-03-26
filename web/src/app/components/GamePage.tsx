@@ -151,7 +151,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   // Hint arrow (fed from background analysis)
   const [hintArrow, setHintArrow] = useState<[string, string] | null>(null);
   const [showHintArrow, setShowHintArrow] = useState(false);
-  const arrows = (showHintArrow && hintArrow) ? [{ startSquare: hintArrow[0], endSquare: hintArrow[1], color: "rgba(163, 209, 96, 0.8)" }] : [];
+  const [premove, setPremove] = useState<{ from: string; to: string } | null>(null);
+  const arrows = [
+    ...(showHintArrow && hintArrow ? [{ startSquare: hintArrow[0], endSquare: hintArrow[1], color: "rgba(163, 209, 96, 0.8)" }] : []),
+  ];
 
   // Background analysis refs
   const analysisAbortRef = useRef<AbortController | null>(null);
@@ -348,6 +351,24 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     };
   }, [isPlayerTurn, gameEnded]);
 
+  // ── Handle Premoves ──
+  useEffect(() => {
+    if (isPlayerTurn && premove && !gameEnded) {
+      const g = gameRef.current;
+      const copy = new Chess(g.fen());
+      let possible = false;
+      try {
+        const mv = copy.move({ from: premove.from, to: premove.to, promotion: "q" });
+        if (mv) possible = true;
+      } catch (e) { possible = false; }
+
+      if (possible) {
+        applyPlayerMove(premove.from, premove.to);
+      }
+      setPremove(null);
+    }
+  }, [isPlayerTurn, premove, gameEnded]);
+
   // ── Bot moves first if player is black (only in AI mode) ──
   const initialBotMoveDone = useRef(false);
   useEffect(() => {
@@ -427,6 +448,13 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     if (!targetSquare) return false;
     setMoveFrom(null);
     setSquareStyles({});
+
+    if (!isPlayerTurn && !gameEnded) {
+      // Set premove
+      setPremove({ from: sourceSquare, to: targetSquare });
+      return true; // visual success for the drag
+    }
+
     return applyPlayerMove(sourceSquare, targetSquare);
   }
 
@@ -463,6 +491,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     setSquareStyles({});
     setMoveFrom(null);
     setHintArrow(null);
+    setPremove(null);
     setGameEnded(false);
     setShowResultModal(false);
     setShowResignConfirm(false);
@@ -677,12 +706,18 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 options={{
                   id: "game-board",
                   position: fen,
-                  squareStyles: squareStyles,
+                  squareStyles: {
+                    ...squareStyles,
+                    ...(premove ? {
+                      [premove.from]: { backgroundColor: "rgba(255, 170, 0, 0.4)" },
+                      [premove.to]: { backgroundColor: "rgba(255, 170, 0, 0.4)" },
+                    } : {}),
+                  },
                   darkSquareStyle: { backgroundColor: "#779556" },
                   lightSquareStyle: { backgroundColor: "#ebecd0" },
                   boardStyle: { borderRadius: "4px" },
                   animationDurationInMs: 200,
-                  allowDragging: isPlayerTurn && !gameEnded,
+                  allowDragging: (!gameEnded),
                   onPieceDrop: handlePieceDrop,
                   onSquareClick: handleSquareClick,
                   boardOrientation: playerColor,
