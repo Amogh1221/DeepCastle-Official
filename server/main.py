@@ -8,6 +8,7 @@ import chess
 import chess.engine
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,7 +19,6 @@ async def lifespan(app: FastAPI):
     await pool.stop()
 
 app = FastAPI(title="Deepcastle Engine API", lifespan=lifespan)
-from contextlib import asynccontextmanager
 
 # ─── Multiplaying / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
@@ -514,8 +514,9 @@ async def analyze_game(request: AnalyzeRequest):
                 accuracy = 0.0
 
             # Elo from avg CPL using exponential decay calibrated to your 3600 engine
+            # Toughened constant from -0.01 to -0.015 for more realistic scoring
             avg_cpl = sum(player_cpls) / max(1, len(player_cpls))
-            estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.01 * avg_cpl)))))
+            estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.015 * avg_cpl)))))
 
             return AnalyzeResponse(
                 accuracy=round(accuracy, 1),
