@@ -128,15 +128,15 @@ async def get_engine():
     
     try:
         # Start the process
-        transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
+        transport, engine = await chess.engine.popen_uci(str(ENGINE_PATH))
         
         # Configure Engine (128MB Hash, Balanced for HF performance)
-        await engine.configure({"Hash": 128, "Threads": 1})
+        await engine.configure({"Hash": 64, "Threads": 1})
         
         if os.path.exists(NNUE_PATH):
             try:
                 print(f"[DEBUG] Configuring EvalFile: {NNUE_PATH}")
-                await engine.configure({"EvalFile": NNUE_PATH})
+                await engine.configure({"EvalFile": str(NNUE_PATH)})
                 print("[DEBUG] EvalFile configured successfully")
             except Exception as e:
                 print(f"[ERROR] Failed to configure NNUE: {str(e)}")
