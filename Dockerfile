@@ -67,7 +67,7 @@ RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
 # BACKEND SETUP
 # ============================================================
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi uvicorn python-chess==1.10.0 pydantic
+RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
 
 # Explicit Paths for Engine & Brain
 ENV ENGINE_PATH=/app/engine/deepcastle
