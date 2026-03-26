@@ -555,7 +555,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         )}
       </AnimatePresence>
 
-      <div className="w-full max-w-[1240px] mx-auto flex flex-col lg:flex-row gap-8 p-2 sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[850px] relative z-10">
+      <div className="w-full max-w-[1240px] mx-auto flex flex-col lg:flex-row gap-8 p-2 sm:p-4 min-h-0 relative z-10">
 
         {/* ── LEFT : BOARD ── */}
         <div className="w-full lg:w-[600px] flex flex-col gap-2 h-full">
