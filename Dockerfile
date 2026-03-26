@@ -33,10 +33,6 @@ RUN mkdir -p /app/scripts && \
 
 WORKDIR /app/src
 
-# Download required brains into src/ so they can be embedded during build
-RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
-    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue
-
 # Build from the detected 'src/' folder - ARCH=x86-64 is the official "Portable" build
 RUN make -j$(nproc) all ARCH=x86-64 && \
     mkdir -p /app/engine && \
@@ -62,8 +58,10 @@ RUN echo "Searching for Launcher (main.py)..." && \
 # ============================================================
 WORKDIR /app/engine
 
-# Download your trained brain directly from HF Space
-RUN wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
+# Download ALL brains (Standard + Your Custom one) into the SAME folder as the binary
+RUN wget -q https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    wget -q https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue && \
+    wget -q https://huggingface.co/spaces/Amogh1221/deepcastle-api/resolve/main/output.nnue -O /app/engine/output.nnue
 
 # ============================================================
 # BACKEND SETUP
