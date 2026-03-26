@@ -391,7 +391,7 @@ export function ReviewPage({
           </div>
 
           {/* RIGHT: Move List & Analytics */}
-          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px]">
+          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px] xl:h-[800px]">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -407,8 +407,7 @@ export function ReviewPage({
 
             {/* REVIEW TAB */}
             {tab === "review" && (
-              <div className="flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden"
-                style={{ minHeight: "480px" }}>
+              <div className="flex-1 flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden min-h-0">
 
                 {/* Accuracy + Elo */}
                 <div className="flex items-stretch border-b border-white/5 shrink-0">
@@ -477,8 +476,7 @@ export function ReviewPage({
                 </div>
 
                 {/* Move list — scrollable */}
-                <div ref={moveListRef} className="overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar"
-                  style={{ maxHeight: "340px", minHeight: "200px" }}>
+                <div ref={moveListRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar min-h-0">
                   {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
                     const whitePly = i * 2 + 1;
                     const blackPly = i * 2 + 2;
@@ -523,8 +521,7 @@ export function ReviewPage({
 
             {/* ANALYSIS TAB */}
             {tab === "analysis" && (
-              <div className="flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden"
-                style={{ minHeight: "480px" }}>
+              <div className="flex-1 flex flex-col bg-[#1a1a1f] rounded-xl border border-white/5 overflow-hidden min-h-0">
                 {/* Live eval header */}
                 <div className="px-4 py-3 border-b border-white/5 shrink-0 flex items-center gap-3">
                   <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center border border-indigo-500/20 shrink-0">
