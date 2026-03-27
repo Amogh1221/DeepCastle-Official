@@ -301,7 +301,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       if (controller.signal.aborted || analysisFenRef.current !== currentFen) return;
       const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
       try {
-        const response = await fetch(`${API_URL}/move`, {
+        const response = await fetch(`${API_URL}/analysis-move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen: currentFen, time: t }),

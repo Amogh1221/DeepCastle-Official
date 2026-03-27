@@ -75,6 +75,7 @@ DEEPCASTLE_ENGINE_PATH = os.environ.get(
     os.environ.get("ENGINE_PATH", "/app/engine_bin/deepcastle"),
 )
 STOCKFISH_ENGINE_PATH = os.environ.get("STOCKFISH_ENGINE_PATH", "/usr/games/stockfish")
+STOCKFISH_NNUE_PATH = os.environ.get("STOCKFISH_NNUE_PATH", "/app/engine_bin/stockfish.nnue")
 NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine_bin/output.nnue")
 NNUE_SMALL_PATH = os.environ.get("NNUE_SMALL_PATH", "/app/engine_bin/small_output.nnue")
 
@@ -180,6 +181,15 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
 
             _GLOBAL_DEEPCASTLE_ENGINE = engine
         else:
+            if os.path.exists(STOCKFISH_NNUE_PATH):
+                try:
+                    await engine.configure({"EvalFile": STOCKFISH_NNUE_PATH})
+                    print("[DEBUG] Stockfish NNUE loaded successfully.")
+                except Exception as ne:
+                    print(f"[ERROR] Stockfish NNUE load failed: {str(ne)}")
+            else:
+                print(f"[WARNING] Stockfish NNUE not found at {STOCKFISH_NNUE_PATH}")
+
             _GLOBAL_STOCKFISH_ENGINE = engine
 
         return engine

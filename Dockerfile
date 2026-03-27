@@ -29,6 +29,11 @@ RUN if [ -d /app/engine/src ]; then BUILD_DIR=/app/engine/src; \
     elif [ -d /app/src ]; then BUILD_DIR=/app/src; \
     else echo "Engine source dir not found"; exit 1; fi && \
     cd "$BUILD_DIR" && \
+    if [ ! -f ../scripts/net.sh ]; then \
+      mkdir -p ../scripts; \
+      printf '#!/bin/sh\n# HF minimal layout fallback: skip default net fetch\nexit 0\n' > ../scripts/net.sh; \
+      chmod +x ../scripts/net.sh; \
+    fi && \
     make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
     mkdir -p /app/engine_bin && \
     cp stockfish /app/engine_bin/deepcastle && \
@@ -48,6 +53,10 @@ RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
 RUN if [ -f /app/output.nnue ]; then cp /app/output.nnue /app/engine_bin/output.nnue; fi && \
     if [ -f /app/small_output.nnue ]; then cp /app/small_output.nnue /app/engine_bin/small_output.nnue; fi
 
+# Download official Stockfish NNUE for analysis/review engine
+RUN wget -q -O /app/engine_bin/stockfish.nnue \
+    https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue
+
 # Force permissions
 RUN chmod -R 777 /app/engine_bin
 
@@ -64,6 +73,7 @@ RUN if [ -f /app/server/requirements.txt ]; then \
 ENV ENGINE_PATH=/app/engine_bin/deepcastle
 ENV DEEPCASTLE_ENGINE_PATH=/app/engine_bin/deepcastle
 ENV STOCKFISH_ENGINE_PATH=/usr/games/stockfish
+ENV STOCKFISH_NNUE_PATH=/app/engine_bin/stockfish.nnue
 ENV NNUE_PATH=/app/engine_bin/output.nnue
 ENV NNUE_SMALL_PATH=/app/engine_bin/small_output.nnue
 ENV PYTHONPATH="/app:/app/server"
