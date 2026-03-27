@@ -204,6 +204,24 @@ def get_normalized_score(info) -> tuple[float, Optional[int]]:
         return (10000.0 if m > 0 else -10000.0), m
     return float(raw.score() or 0.0), None
 
+
+def normalize_search_stats(info: dict) -> tuple[int, int, int]:
+    """
+    Depth, nodes, and NPS from a single search. Prefer NPS = nodes / elapsed time
+    when the engine reports time so the UI stays internally consistent (UCI nps is
+    often an instantaneous rate and need not match total nodes).
+    """
+    depth = int(info.get("depth") or 0)
+    nodes = int(info.get("nodes") or 0)
+    t = info.get("time")
+    nps_raw = int(info.get("nps") or 0)
+    if t is not None and float(t) > 0 and nodes > 0:
+        nps = max(0, int(round(nodes / float(t))))
+    else:
+        nps = nps_raw
+    return depth, nodes, nps
+
+
 # ─── Engine Inference Route ────────────────────────────────────────────────────
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
@@ -212,18 +230,16 @@ async def get_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
-        # Search for best move
-        result = await engine.play(board, limit)
-        
-        # Get evaluation separately to avoid blocking
-        info = await engine.analyse(board, chess.engine.Limit(time=0.1, depth=limit.depth or 12))
+        # One search: stats must come from this run (not a separate short analyse).
+        result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+        info = dict(result.info)
+        if not info:
+            info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
         
-        depth = info.get("depth", 0)
-        nodes = info.get("nodes", 0)
-        nps = info.get("nps", 0)
+        depth, nodes, nps = normalize_search_stats(info)
 
         pv_board = board.copy()
         pv_parts = []
@@ -266,14 +282,14 @@ async def get_analysis_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
 
-        result = await engine.play(board, limit)
-        info = await engine.analyse(board, chess.engine.Limit(time=0.1, depth=limit.depth or 12))
+        result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+        info = dict(result.info)
+        if not info:
+            info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
 
         score_cp, mate_in = get_normalized_score(info)
 
-        depth = info.get("depth", 0)
-        nodes = info.get("nodes", 0)
-        nps = info.get("nps", 0)
+        depth, nodes, nps = normalize_search_stats(info)
 
         pv_board = board.copy()
         pv_parts = []
