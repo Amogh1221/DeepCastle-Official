@@ -54,7 +54,11 @@ RUN chmod -R 777 /app/engine_bin
 # ============================================================
 # BACKEND SETUP
 # ============================================================
-RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
+RUN if [ -f /app/server/requirements.txt ]; then \
+      pip install --no-cache-dir -r /app/server/requirements.txt; \
+    else \
+      pip install --no-cache-dir fastapi "uvicorn[standard]" websockets python-chess pydantic; \
+    fi
 
 # Explicit Paths
 ENV ENGINE_PATH=/app/engine_bin/deepcastle
