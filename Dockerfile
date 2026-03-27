@@ -28,6 +28,8 @@ RUN if [ -d /app/engine/src ]; then BUILD_DIR=/app/engine/src; \
     elif [ -d /app/src ]; then BUILD_DIR=/app/src; \
     else echo "Engine source dir not found"; exit 1; fi && \
     cd "$BUILD_DIR" && \
+    wget -q -O nn-9a0cc2a62c52.nnue https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue && \
+    wget -q -O nn-47fc8b7fff06.nnue https://tests.stockfishchess.org/api/nn/nn-47fc8b7fff06.nnue && \
     if [ ! -f ../scripts/net.sh ]; then \
       mkdir -p ../scripts; \
       printf '#!/bin/sh\n# HF minimal layout fallback: skip default net fetch\nexit 0\n' > ../scripts/net.sh; \
