@@ -151,8 +151,9 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
 
         if os.path.exists(NNUE_PATH):
             try:
+                print(f"[DEBUG] Configuring DeepCastle EvalFile -> {NNUE_PATH}")
                 await engine.configure({"EvalFile": NNUE_PATH})
-                print("[DEBUG] DeepCastle big net loaded successfully.")
+                print(f"[DEBUG] DeepCastle big net loaded successfully: {NNUE_PATH}")
             except Exception as ne:
                 print(f"[ERROR] DeepCastle big net load failed: {str(ne)}")
         else:
@@ -160,8 +161,9 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
 
         if os.path.exists(NNUE_SMALL_PATH):
             try:
+                print(f"[DEBUG] Configuring DeepCastle EvalFileSmall -> {NNUE_SMALL_PATH}")
                 await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
-                print("[DEBUG] DeepCastle small net loaded successfully.")
+                print(f"[DEBUG] DeepCastle small net loaded successfully: {NNUE_SMALL_PATH}")
             except Exception as ne:
                 print(f"[ERROR] DeepCastle small net load failed: {str(ne)}")
         else:
