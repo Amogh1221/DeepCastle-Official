@@ -33,7 +33,7 @@ RUN if [ -d /app/engine/src ]; then BUILD_DIR=/app/engine/src; \
       printf '#!/bin/sh\n# HF minimal layout fallback: skip default net fetch\nexit 0\n' > ../scripts/net.sh; \
       chmod +x ../scripts/net.sh; \
     fi && \
-    make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
+    make -j2 build ARCH=x86-64 && \
     mkdir -p /app/engine_bin && \
     cp stockfish /app/engine_bin/deepcastle && \
     chmod +x /app/engine_bin/deepcastle
