@@ -141,46 +141,32 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
     if not os.path.exists(engine_path):
         raise HTTPException(status_code=500, detail=f"{role} binary NOT FOUND at {engine_path}")
 
-    print(f"[DEBUG] Attempting to start {role} engine at {engine_path}")
     try:
-        transport, engine = await chess.engine.popen_uci(engine_path)
-        print(f"[DEBUG] {role} process started. ID: {transport.get_pid()}")
+        _, engine = await chess.engine.popen_uci(engine_path)
 
         if options:
             await engine.configure(options)
 
         if os.path.exists(NNUE_PATH):
             try:
-                print(f"[DEBUG] Configuring DeepCastle EvalFile -> {NNUE_PATH}")
                 await engine.configure({"EvalFile": NNUE_PATH})
-                print(f"[DEBUG] DeepCastle big net loaded successfully: {NNUE_PATH}")
             except Exception as ne:
-                print(f"[ERROR] DeepCastle big net load failed: {str(ne)}")
+                print(f"[ERROR] EvalFile load failed: {str(ne)}")
         else:
-            print(f"[WARNING] DeepCastle big net not found at {NNUE_PATH}")
+            print(f"[WARNING] EvalFile not found at {NNUE_PATH}")
 
         if os.path.exists(NNUE_SMALL_PATH):
             try:
-                print(f"[DEBUG] Configuring DeepCastle EvalFileSmall -> {NNUE_SMALL_PATH}")
                 await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
-                print(f"[DEBUG] DeepCastle small net loaded successfully: {NNUE_SMALL_PATH}")
             except Exception as ne:
-                print(f"[ERROR] DeepCastle small net load failed: {str(ne)}")
+                print(f"[ERROR] EvalFileSmall load failed: {str(ne)}")
         else:
-            print(f"[WARNING] DeepCastle small net not found at {NNUE_SMALL_PATH}")
+            print(f"[WARNING] EvalFileSmall not found at {NNUE_SMALL_PATH}")
 
         _GLOBAL_DEEPCASTLE_ENGINE = engine
 
         return engine
     except Exception as e:
-        print(f"[CRITICAL] {role} failed to start: {str(e)}")
-        # Try to gather more info by running the binary directly briefly
-        import subprocess
-        try:
-            diag = subprocess.run([engine_path, "uci"], capture_output=True, text=True, timeout=2)
-            print(f"[DIAG] {role} output: {diag.stdout} | Error: {diag.stderr}")
-        except Exception as de:
-            print(f"[DIAG] Could not run diagnosis: {str(de)}")
         raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
 
 async def get_deepcastle_engine():
