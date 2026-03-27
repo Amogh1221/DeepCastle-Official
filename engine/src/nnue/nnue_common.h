@@ -212,7 +212,11 @@ inline void read_leb_128(std::istream& stream, Arrays&... outs) {
     // Check the presence of our LEB128 magic string
     char leb128MagicString[Leb128MagicStringSize];
     stream.read(leb128MagicString, Leb128MagicStringSize);
-    assert(strncmp(Leb128MagicString, leb128MagicString, Leb128MagicStringSize) == 0);
+    if (stream.fail() || strncmp(Leb128MagicString, leb128MagicString, Leb128MagicStringSize) != 0)
+    {
+        stream.setstate(std::ios::failbit);
+        return;
+    }
 
     auto                           bytes_left = read_little_endian<std::uint32_t>(stream);
     std::array<std::uint8_t, 8192> buf;
@@ -220,7 +224,8 @@ inline void read_leb_128(std::istream& stream, Arrays&... outs) {
 
     (read_leb_128_detail(stream, outs, bytes_left, buf, buf_pos), ...);
 
-    assert(bytes_left == 0);
+    if (bytes_left != 0)
+        stream.setstate(std::ios::failbit);
 }
 
 

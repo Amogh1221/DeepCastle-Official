@@ -157,28 +157,43 @@ class FeatureTransformer {
 
     // Read network parameters
     bool read_parameters(std::istream& stream) {
-        // DeepCastle v7 Custom Format: Raw bytes, no LEB128
-        read_little_endian<BiasType>(stream, biases.data(), biases.size());
+        const std::streampos beginPos = stream.tellg();
 
         if constexpr (UseThreats)
         {
+            // Primary path: Full_Threats + HalfKAv2_hm^ export layout
+            read_leb_128(stream, biases);
             read_little_endian<ThreatWeightType>(stream, threatWeights.data(),
                                                  ThreatInputDimensions * HalfDimensions);
-            read_little_endian<WeightType>(stream, weights.data(), weights.size());
-            read_little_endian<PSQTWeightType>(stream, threatPsqtWeights.data(), threatPsqtWeights.size());
-            read_little_endian<PSQTWeightType>(stream, psqtWeights.data(), psqtWeights.size());
+            read_leb_128(stream, weights);
+            read_leb_128(stream, threatPsqtWeights);
+            read_leb_128(stream, psqtWeights);
+
+            if (stream.fail())
+            {
+                // Fallback path: HalfKAv2_hm^ only export layout (no threat tensors)
+                stream.clear();
+                stream.seekg(beginPos);
+                std::fill(threatWeights.begin(), threatWeights.end(), 0);
+                std::fill(threatPsqtWeights.begin(), threatPsqtWeights.end(), 0);
+
+                read_leb_128(stream, biases);
+                read_leb_128(stream, weights);
+                read_leb_128(stream, psqtWeights);
+            }
         }
         else
         {
-            read_little_endian<WeightType>(stream, weights.data(), weights.size());
-            read_little_endian<PSQTWeightType>(stream, psqtWeights.data(), psqtWeights.size());
+            read_leb_128(stream, biases);
+            read_leb_128(stream, weights);
+            read_leb_128(stream, psqtWeights);
         }
 
-        // DeepCastle v7 training script already handles permutation if needed, 
-        // but typically SF expects this. We'll leave it out for DC07 raw format.
-        // permute_weights(); 
+        if (stream.fail())
+            return false;
 
-        return !stream.fail();
+        permute_weights();
+        return true;
     }
 
     // Write network parameters

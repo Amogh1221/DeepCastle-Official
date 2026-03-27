@@ -70,8 +70,13 @@ app.add_middleware(
 )
 
 # Paths relative to the Docker container
-ENGINE_PATH = os.environ.get("ENGINE_PATH", "/app/engine/deepcastle")
-NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine/output.nnue")
+DEEPCASTLE_ENGINE_PATH = os.environ.get(
+    "DEEPCASTLE_ENGINE_PATH",
+    os.environ.get("ENGINE_PATH", "/app/engine_bin/deepcastle"),
+)
+STOCKFISH_ENGINE_PATH = os.environ.get("STOCKFISH_ENGINE_PATH", "/usr/games/stockfish")
+NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine_bin/output.nnue")
+NNUE_SMALL_PATH = os.environ.get("NNUE_SMALL_PATH", "/app/engine_bin/small_output.nnue")
 
 class MoveRequest(BaseModel):
     fen: str
@@ -116,56 +121,92 @@ def home():
 
 @app.get("/health")
 def health():
-    if not os.path.exists(ENGINE_PATH):
-        return {"status": "error", "message": "Engine binary not found"}
-    return {"status": "ok", "engine": "Deepcastle"}
+    missing = []
+    if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
+        missing.append("deepcastle")
+    if not os.path.exists(STOCKFISH_ENGINE_PATH):
+        missing.append("stockfish")
+    if missing:
+        return {"status": "error", "message": f"Missing engine binary: {', '.join(missing)}"}
+    return {"status": "ok", "engines": ["deepcastle", "stockfish"]}
 
-# Global engine instance to save memory and improve performance
-_GLOBAL_ENGINE = None
+# Global engine instances to save memory and improve performance
+_GLOBAL_DEEPCASTLE_ENGINE = None
+_GLOBAL_STOCKFISH_ENGINE = None
 
-async def get_engine():
-    global _GLOBAL_ENGINE
-    if _GLOBAL_ENGINE is not None:
+async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional[dict] = None):
+    global _GLOBAL_DEEPCASTLE_ENGINE, _GLOBAL_STOCKFISH_ENGINE
+
+    current_engine = _GLOBAL_DEEPCASTLE_ENGINE if role == "deepcastle" else _GLOBAL_STOCKFISH_ENGINE
+    if current_engine is not None:
         try:
-            # Check if engine is still alive
-            if not _GLOBAL_ENGINE.is_terminated():
-                return _GLOBAL_ENGINE
+            if not current_engine.is_terminated():
+                return current_engine
         except Exception:
-            _GLOBAL_ENGINE = None
+            if role == "deepcastle":
+                _GLOBAL_DEEPCASTLE_ENGINE = None
+            else:
+                _GLOBAL_STOCKFISH_ENGINE = None
 
-    if not os.path.exists(ENGINE_PATH):
-        raise HTTPException(status_code=500, detail=f"Engine binary NOT FOUND at {ENGINE_PATH}")
-    
-    print(f"[DEBUG] Attempting to start engine at {ENGINE_PATH}")
+    if not os.path.exists(engine_path):
+        raise HTTPException(status_code=500, detail=f"{role} binary NOT FOUND at {engine_path}")
+
+    print(f"[DEBUG] Attempting to start {role} engine at {engine_path}")
     try:
-        transport, engine = await chess.engine.popen_uci(ENGINE_PATH)
-        print(f"[DEBUG] Engine process started. ID: {transport.get_pid()}")
-        
-        # Configure once
-        await engine.configure({"Hash": 128, "Threads": 1}) 
-        
-        if os.path.exists(NNUE_PATH):
-            print(f"[DEBUG] Found NNUE at {NNUE_PATH}. Attempting to load...")
-            try:
-                await engine.configure({"EvalFile": NNUE_PATH})
-                print("[DEBUG] NNUE loaded successfully.")
-            except Exception as ne:
-                print(f"[ERROR] NNUE load failed: {str(ne)}")
+        transport, engine = await chess.engine.popen_uci(engine_path)
+        print(f"[DEBUG] {role} process started. ID: {transport.get_pid()}")
+
+        if options:
+            await engine.configure(options)
+
+        if role == "deepcastle":
+            if os.path.exists(NNUE_PATH):
+                try:
+                    await engine.configure({"EvalFile": NNUE_PATH})
+                    print("[DEBUG] DeepCastle big net loaded successfully.")
+                except Exception as ne:
+                    print(f"[ERROR] DeepCastle big net load failed: {str(ne)}")
+            else:
+                print(f"[WARNING] DeepCastle big net not found at {NNUE_PATH}")
+
+            if os.path.exists(NNUE_SMALL_PATH):
+                try:
+                    await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
+                    print("[DEBUG] DeepCastle small net loaded successfully.")
+                except Exception as ne:
+                    print(f"[ERROR] DeepCastle small net load failed: {str(ne)}")
+            else:
+                print(f"[WARNING] DeepCastle small net not found at {NNUE_SMALL_PATH}")
+
+            _GLOBAL_DEEPCASTLE_ENGINE = engine
         else:
-            print(f"[WARNING] NNUE NOT FOUND at {NNUE_PATH}")
-                
-        _GLOBAL_ENGINE = engine
+            _GLOBAL_STOCKFISH_ENGINE = engine
+
         return engine
     except Exception as e:
-        print(f"[CRITICAL] Engine failed to start: {str(e)}")
+        print(f"[CRITICAL] {role} failed to start: {str(e)}")
         # Try to gather more info by running the binary directly briefly
         import subprocess
         try:
-            diag = subprocess.run([ENGINE_PATH, "uci"], capture_output=True, text=True, timeout=2)
-            print(f"[DIAG] Engine output: {diag.stdout} | Error: {diag.stderr}")
+            diag = subprocess.run([engine_path, "uci"], capture_output=True, text=True, timeout=2)
+            print(f"[DIAG] {role} output: {diag.stdout} | Error: {diag.stderr}")
         except Exception as de:
             print(f"[DIAG] Could not run diagnosis: {str(de)}")
-        raise HTTPException(status_code=500, detail=f"Engine Crash: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
+
+async def get_deepcastle_engine():
+    return await _get_or_start_engine(
+        DEEPCASTLE_ENGINE_PATH,
+        role="deepcastle",
+        options={"Hash": 128, "Threads": 1},
+    )
+
+async def get_stockfish_engine():
+    return await _get_or_start_engine(
+        STOCKFISH_ENGINE_PATH,
+        role="stockfish",
+        options={"Hash": 128, "Threads": 1},
+    )
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
@@ -181,7 +222,7 @@ def get_normalized_score(info) -> tuple[float, Optional[int]]:
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
     try:
-        engine = await get_engine()
+        engine = await get_deepcastle_engine()
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
@@ -230,6 +271,54 @@ async def get_move(request: MoveRequest):
         )
     except Exception as e:
         print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analysis-move", response_model=MoveResponse)
+async def get_analysis_move(request: MoveRequest):
+    try:
+        engine = await get_stockfish_engine()
+        board = chess.Board(request.fen)
+        limit = chess.engine.Limit(time=request.time, depth=request.depth)
+
+        result = await engine.play(board, limit)
+        info = await engine.analyse(board, chess.engine.Limit(time=0.1, depth=limit.depth or 12))
+
+        score_cp, mate_in = get_normalized_score(info)
+
+        depth = info.get("depth", 0)
+        nodes = info.get("nodes", 0)
+        nps = info.get("nps", 0)
+
+        pv_board = board.copy()
+        pv_parts = []
+        for m in info.get("pv", [])[:5]:
+            if m in pv_board.legal_moves:
+                try:
+                    pv_parts.append(pv_board.san(m))
+                    pv_board.push(m)
+                except Exception:
+                    break
+            else:
+                break
+        pv = " ".join(pv_parts)
+
+        score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
+
+        board_fen_only = board.fen().split(" ")[0]
+        opening_name = openings_db.get(board_fen_only)
+
+        return MoveResponse(
+            bestmove=result.move.uci(),
+            score=score_pawns,
+            depth=depth,
+            nodes=nodes,
+            nps=nps,
+            pv=pv,
+            mate_in=mate_in,
+            opening=opening_name
+        )
+    except Exception as e:
+        print(f"Analysis move error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -378,7 +467,7 @@ def get_move_classification(
 async def analyze_game(request: AnalyzeRequest):
     engine = None
     try:
-        engine = await get_engine()
+        engine = await get_stockfish_engine()
         board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
         limit = chess.engine.Limit(time=request.time_per_move)
         

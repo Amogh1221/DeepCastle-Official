@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     findutils \
+    stockfish \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -19,11 +20,16 @@ WORKDIR /app
 COPY . .
 
 # ============================================================
-# CUSTOM DEEPCASTLE ENGINE BUILD (From your engine/src)
+# CUSTOM DEEPCASTLE ENGINE BUILD
+# Supports both repo layouts:
+# 1) /app/engine/src (full repo)
+# 2) /app/src        (HF minimal repo)
 # ============================================================
-WORKDIR /app/engine/src
-# Use the exact command from build_linux.sh but without the invalid 'build' target
-RUN make -j$(nproc) ARCH=x86-64-modern && \
+RUN if [ -d /app/engine/src ]; then BUILD_DIR=/app/engine/src; \
+    elif [ -d /app/src ]; then BUILD_DIR=/app/src; \
+    else echo "Engine source dir not found"; exit 1; fi && \
+    cd "$BUILD_DIR" && \
+    make -j$(nproc) ARCH=x86-64-modern && \
     mkdir -p /app/engine_bin && \
     cp stockfish /app/engine_bin/deepcastle && \
     chmod +x /app/engine_bin/deepcastle
@@ -38,8 +44,9 @@ RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
 # ============================================================
 # BRAIN PLACEMENT
 # ============================================================
-# Map your custom brain (output.nnue) correctly for the server
-RUN find /app -maxdepth 2 -name "*.nnue" -exec cp {} /app/engine_bin/output.nnue \; || echo "No custom NNUE found."
+# Map your custom brains for the server
+RUN if [ -f /app/output.nnue ]; then cp /app/output.nnue /app/engine_bin/output.nnue; fi && \
+    if [ -f /app/small_output.nnue ]; then cp /app/small_output.nnue /app/engine_bin/small_output.nnue; fi
 
 # Force permissions
 RUN chmod -R 777 /app/engine_bin
@@ -51,7 +58,10 @@ RUN pip install --no-cache-dir fastapi uvicorn chess==1.11.2 pydantic
 
 # Explicit Paths
 ENV ENGINE_PATH=/app/engine_bin/deepcastle
+ENV DEEPCASTLE_ENGINE_PATH=/app/engine_bin/deepcastle
+ENV STOCKFISH_ENGINE_PATH=/usr/games/stockfish
 ENV NNUE_PATH=/app/engine_bin/output.nnue
+ENV NNUE_SMALL_PATH=/app/engine_bin/small_output.nnue
 ENV PYTHONPATH="/app:/app/server"
 
 EXPOSE 7860

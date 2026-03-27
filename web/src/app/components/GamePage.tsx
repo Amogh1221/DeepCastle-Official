@@ -622,7 +622,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
                 <h3 className="font-black text-xs sm:text-sm text-slate-100 flex items-center gap-2 truncate">
                   {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
                   <span className="hidden sm:inline-block text-orange-500 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
-                    {settings.mode === "ai" ? "3600+ Elo" : "Joined"}
+                    {settings.mode === "ai" ? "Elo: 1" : "Joined"}
                   </span>
                 </h3>
                 {settings.mode === "p2p" && !opponentJoined && <p className="text-[9px] sm:text-[10px] text-amber-500 animate-pulse">Waiting...</p>}

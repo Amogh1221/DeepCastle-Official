@@ -27,6 +27,18 @@ class DeepCastle:
                 timeout=60,
                 stderr=subprocess.DEVNULL
             )
+            # Ensure the engine loads the local trained nets when present.
+            # This avoids failure when the default small net file is missing.
+            base_dir = os.path.dirname(os.path.abspath(self.engine_path))
+            big_net = os.path.join(base_dir, "output.nnue")
+            small_net = os.path.join(base_dir, "small_output.nnue")
+            cfg = {}
+            if os.path.exists(big_net):
+                cfg["EvalFile"] = "output.nnue"
+            if os.path.exists(small_net):
+                cfg["EvalFileSmall"] = "small_output.nnue"
+            if cfg:
+                self._engine.configure(cfg)
         return self._engine
 
     def select_move(self, board, depth=None, time_limit=None, is_background=False, on_info=None):

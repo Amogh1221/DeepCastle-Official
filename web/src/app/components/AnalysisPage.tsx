@@ -58,7 +58,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       if (ctrl.signal.aborted || analysisFenRef.current !== fen) return;
       const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
       try {
-        const res = await fetch(`${API_URL}/move`, {
+        const res = await fetch(`${API_URL}/analysis-move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen, time: t }),

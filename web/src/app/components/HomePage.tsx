@@ -23,8 +23,8 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     {
       icon: <Trophy className="w-6 h-6" />,
       label: "Estimated Elo",
-      value: "3600+",
-      sub: "Calibrated vs Stockfish 18",
+      value: "Unknown",
+      sub: "Not yet benchmarked",
       color: "from-amber-500 to-orange-600",
     },
     {
@@ -96,8 +96,8 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     },
     {
       version: "v7 · Current",
-      label: "Full Deployment — 3604 Elo",
-      elo: "~3604",
+      label: "Full Deployment",
+      elo: "Unknown",
       desc: "Switched to Stockfish gensfen self-play data (depth 9, multipvdiff_100, quiet positions only). Used C++ SparseBatchDataset for 500K+ pos/sec loading. Deployed as FastAPI on Hugging Face Spaces + Next.js frontend on Vercel. Result: 0W/1L/21D vs Stockfish 18 — statistically within one sigma.",
     },
   ];

@@ -160,7 +160,7 @@ export function ReviewPage({
 
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/move`, {
+        const res = await fetch(`${API_URL}/analysis-move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen: targetFen, time: 0.5 }),

@@ -89,10 +89,9 @@ namespace Detail {
 // Read evaluation function parameters
 template<typename T>
 bool read_parameters(std::istream& stream, T& reference) {
-
     std::uint32_t header;
     header = read_little_endian<std::uint32_t>(stream);
-    if (!stream || (false && header != T::get_hash_value()))
+    if (!stream)
         return false;
     return reference.read_parameters(stream);
 }
@@ -348,15 +347,6 @@ bool Network<Arch, Transformer>::read_header(std::istream&  stream,
     std::uint32_t magic;
 
     magic = read_little_endian<std::uint32_t>(stream);
-    
-    // Support DeepCastle v7 Custom Header (DC07)
-    if (magic == 0x44433037u) {
-        *hashValue = 0; // Bypass hash check for custom nets
-        desc->assign("DeepCastle v7 Custom Network");
-        return true;
-    }
-
-    // Fallback to official Stockfish header format
     *hashValue = read_little_endian<std::uint32_t>(stream);
     std::uint32_t size = read_little_endian<std::uint32_t>(stream);
     if (!stream || magic != Version)
