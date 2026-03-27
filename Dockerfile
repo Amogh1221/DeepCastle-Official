@@ -29,7 +29,7 @@ RUN if [ -d /app/engine/src ]; then BUILD_DIR=/app/engine/src; \
     elif [ -d /app/src ]; then BUILD_DIR=/app/src; \
     else echo "Engine source dir not found"; exit 1; fi && \
     cd "$BUILD_DIR" && \
-    make -j$(nproc) ARCH=x86-64-modern && \
+    make -j$(nproc) build ARCH=x86-64-sse41-popcnt && \
     mkdir -p /app/engine_bin && \
     cp stockfish /app/engine_bin/deepcastle && \
     chmod +x /app/engine_bin/deepcastle

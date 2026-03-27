@@ -20,3 +20,6 @@ game/*.pgn
 
 # Local test scripts
 start_server.ps1
+
+# Training datasets / artifacts
+training/*.binpack
