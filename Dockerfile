@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     findutils \
-    stockfish \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -53,10 +52,6 @@ RUN LAUNCHER_PATH=$(find /app -name "main.py" | head -n 1) && \
 RUN if [ -f /app/output.nnue ]; then cp /app/output.nnue /app/engine_bin/output.nnue; fi && \
     if [ -f /app/small_output.nnue ]; then cp /app/small_output.nnue /app/engine_bin/small_output.nnue; fi
 
-# Download official Stockfish NNUE for analysis/review engine
-RUN wget -q -O /app/engine_bin/stockfish.nnue \
-    https://tests.stockfishchess.org/api/nn/nn-9a0cc2a62c52.nnue
-
 # Force permissions
 RUN chmod -R 777 /app/engine_bin
 
@@ -72,8 +67,6 @@ RUN if [ -f /app/server/requirements.txt ]; then \
 # Explicit Paths
 ENV ENGINE_PATH=/app/engine_bin/deepcastle
 ENV DEEPCASTLE_ENGINE_PATH=/app/engine_bin/deepcastle
-ENV STOCKFISH_ENGINE_PATH=/usr/games/stockfish
-ENV STOCKFISH_NNUE_PATH=/app/engine_bin/stockfish.nnue
 ENV NNUE_PATH=/app/engine_bin/output.nnue
 ENV NNUE_SMALL_PATH=/app/engine_bin/small_output.nnue
 ENV PYTHONPATH="/app:/app/server"

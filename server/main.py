@@ -74,8 +74,6 @@ DEEPCASTLE_ENGINE_PATH = os.environ.get(
     "DEEPCASTLE_ENGINE_PATH",
     os.environ.get("ENGINE_PATH", "/app/engine_bin/deepcastle"),
 )
-STOCKFISH_ENGINE_PATH = os.environ.get("STOCKFISH_ENGINE_PATH", "/usr/games/stockfish")
-STOCKFISH_NNUE_PATH = os.environ.get("STOCKFISH_NNUE_PATH", "/app/engine_bin/stockfish.nnue")
 NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine_bin/output.nnue")
 NNUE_SMALL_PATH = os.environ.get("NNUE_SMALL_PATH", "/app/engine_bin/small_output.nnue")
 
@@ -122,32 +120,23 @@ def home():
 
 @app.get("/health")
 def health():
-    missing = []
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
-        missing.append("deepcastle")
-    if not os.path.exists(STOCKFISH_ENGINE_PATH):
-        missing.append("stockfish")
-    if missing:
-        return {"status": "error", "message": f"Missing engine binary: {', '.join(missing)}"}
-    return {"status": "ok", "engines": ["deepcastle", "stockfish"]}
+        return {"status": "error", "message": "Missing engine binary: deepcastle"}
+    return {"status": "ok", "engine": "deepcastle"}
 
 # Global engine instances to save memory and improve performance
 _GLOBAL_DEEPCASTLE_ENGINE = None
-_GLOBAL_STOCKFISH_ENGINE = None
 
 async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional[dict] = None):
-    global _GLOBAL_DEEPCASTLE_ENGINE, _GLOBAL_STOCKFISH_ENGINE
+    global _GLOBAL_DEEPCASTLE_ENGINE
 
-    current_engine = _GLOBAL_DEEPCASTLE_ENGINE if role == "deepcastle" else _GLOBAL_STOCKFISH_ENGINE
+    current_engine = _GLOBAL_DEEPCASTLE_ENGINE
     if current_engine is not None:
         try:
             if not current_engine.is_terminated():
                 return current_engine
         except Exception:
-            if role == "deepcastle":
-                _GLOBAL_DEEPCASTLE_ENGINE = None
-            else:
-                _GLOBAL_STOCKFISH_ENGINE = None
+            _GLOBAL_DEEPCASTLE_ENGINE = None
 
     if not os.path.exists(engine_path):
         raise HTTPException(status_code=500, detail=f"{role} binary NOT FOUND at {engine_path}")
@@ -160,37 +149,25 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
         if options:
             await engine.configure(options)
 
-        if role == "deepcastle":
-            if os.path.exists(NNUE_PATH):
-                try:
-                    await engine.configure({"EvalFile": NNUE_PATH})
-                    print("[DEBUG] DeepCastle big net loaded successfully.")
-                except Exception as ne:
-                    print(f"[ERROR] DeepCastle big net load failed: {str(ne)}")
-            else:
-                print(f"[WARNING] DeepCastle big net not found at {NNUE_PATH}")
-
-            if os.path.exists(NNUE_SMALL_PATH):
-                try:
-                    await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
-                    print("[DEBUG] DeepCastle small net loaded successfully.")
-                except Exception as ne:
-                    print(f"[ERROR] DeepCastle small net load failed: {str(ne)}")
-            else:
-                print(f"[WARNING] DeepCastle small net not found at {NNUE_SMALL_PATH}")
-
-            _GLOBAL_DEEPCASTLE_ENGINE = engine
+        if os.path.exists(NNUE_PATH):
+            try:
+                await engine.configure({"EvalFile": NNUE_PATH})
+                print("[DEBUG] DeepCastle big net loaded successfully.")
+            except Exception as ne:
+                print(f"[ERROR] DeepCastle big net load failed: {str(ne)}")
         else:
-            if os.path.exists(STOCKFISH_NNUE_PATH):
-                try:
-                    await engine.configure({"EvalFile": STOCKFISH_NNUE_PATH})
-                    print("[DEBUG] Stockfish NNUE loaded successfully.")
-                except Exception as ne:
-                    print(f"[ERROR] Stockfish NNUE load failed: {str(ne)}")
-            else:
-                print(f"[WARNING] Stockfish NNUE not found at {STOCKFISH_NNUE_PATH}")
+            print(f"[WARNING] DeepCastle big net not found at {NNUE_PATH}")
 
-            _GLOBAL_STOCKFISH_ENGINE = engine
+        if os.path.exists(NNUE_SMALL_PATH):
+            try:
+                await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
+                print("[DEBUG] DeepCastle small net loaded successfully.")
+            except Exception as ne:
+                print(f"[ERROR] DeepCastle small net load failed: {str(ne)}")
+        else:
+            print(f"[WARNING] DeepCastle small net not found at {NNUE_SMALL_PATH}")
+
+        _GLOBAL_DEEPCASTLE_ENGINE = engine
 
         return engine
     except Exception as e:
@@ -212,11 +189,8 @@ async def get_deepcastle_engine():
     )
 
 async def get_stockfish_engine():
-    return await _get_or_start_engine(
-        STOCKFISH_ENGINE_PATH,
-        role="stockfish",
-        options={"Hash": 128, "Threads": 1},
-    )
+    # Compatibility alias: analysis now also uses DeepCastle.
+    return await get_deepcastle_engine()
 
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
