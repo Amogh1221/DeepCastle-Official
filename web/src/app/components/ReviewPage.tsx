@@ -341,13 +341,14 @@ export function ReviewPage({
         <div className="flex-1 flex flex-col min-h-0 w-full max-w-none px-2 sm:px-3 lg:pl-3 lg:pr-2 pb-3 pt-2 overflow-hidden">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
-          {/* Col 1: Board + graph — grows to fill space left of middle + history */}
-          <div className="flex flex-col gap-3 w-full min-w-0 xl:flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
+          {/* Col 1: Board fills column height; evaluation graph pinned to bottom (xl) */}
+          <div className="flex flex-col w-full min-w-0 xl:flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-2 sm:gap-3">
 
-            {/* Board row — height cap leaves room for eval chart (label + graph) in viewport */}
-            <div className="flex gap-2 sm:gap-3 min-h-0 shrink-0 xl:max-h-[min(100%,calc(100dvh-300px))]">
-              {/* Eval bar */}
-              <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[120px]">
+            {/* Board region — grows so eval sits at bottom with no dead space below */}
+            <div className="flex flex-1 min-h-0 flex-col">
+              <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+              {/* Eval bar — matches board cell height */}
+              <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px]">
                 <div
                   className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400"
                   style={{ height: `${100 - evalBarWhite}%` }}
@@ -358,9 +359,9 @@ export function ReviewPage({
                 />
               </div>
 
-              {/* Board */}
-              <div className="flex-1 relative bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible min-w-0 min-h-0 flex items-center justify-center">
-                <div className="aspect-square w-full max-w-[min(100%,calc(100dvh-300px))] relative">
+              {/* Board — largest square that fits the flex area */}
+              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
+                <div className="relative aspect-square w-full max-h-full max-w-full">
                   <Chessboard
                     options={{
                       position: displayFen,
@@ -402,9 +403,10 @@ export function ReviewPage({
                   )}
                 </div>
               </div>
+              </div>
             </div>
 
-            {/* Eval Graph */}
+            {/* Eval Graph — pinned to bottom of column */}
             <div className="flex flex-col h-[7.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
               <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
                 <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
