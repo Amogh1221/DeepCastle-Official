@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from contextlib import asynccontextmanager
 import os
 import math
@@ -9,11 +10,11 @@ import chess
 import chess.engine
 import asyncio
 import json
+import gc
 
-# ─── Multiplaying / Challenge Manager ──────────────────────────────────────────
+# ─── Multiplayer / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
     def __init__(self):
-        # match_id -> list of websockets
         self.active_connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, match_id: str):
@@ -26,17 +27,28 @@ class ConnectionManager:
         if match_id in self.active_connections:
             if websocket in self.active_connections[match_id]:
                 self.active_connections[match_id].remove(websocket)
+            # FIX: Clean up empty rooms so dict doesn't grow forever
             if not self.active_connections[match_id]:
                 del self.active_connections[match_id]
 
     async def broadcast(self, message: str, match_id: str, exclude: WebSocket = None):
-        if match_id in self.active_connections:
-            for connection in self.active_connections[match_id]:
-                if connection != exclude:
-                    try:
-                        await connection.send_text(message)
-                    except Exception:
-                        pass
+        if match_id not in self.active_connections:
+            return
+        dead = []
+        for connection in self.active_connections[match_id]:
+            if connection == exclude:
+                continue
+            try:
+                await connection.send_text(message)
+            except Exception:
+                # FIX: Track dead sockets instead of silently ignoring them
+                dead.append(connection)
+        # FIX: Remove dead sockets after iteration to free memory
+        for d in dead:
+            self.active_connections[match_id].remove(d)
+        # FIX: Clean up empty room after removing dead sockets
+        if match_id in self.active_connections and not self.active_connections[match_id]:
+            del self.active_connections[match_id]
 
 manager = ConnectionManager()
 
@@ -48,9 +60,10 @@ DEEPCASTLE_ENGINE_PATH = os.environ.get(
 NNUE_PATH = os.environ.get("NNUE_PATH", "/app/engine_bin/output.nnue")
 NNUE_SMALL_PATH = os.environ.get("NNUE_SMALL_PATH", "/app/engine_bin/small_output.nnue")
 
+
 class MoveRequest(BaseModel):
     fen: str
-    time: float = 1.0  # seconds
+    time: float = 1.0
     depth: Optional[int] = None
 
 class MoveResponse(BaseModel):
@@ -85,27 +98,24 @@ class AnalyzeResponse(BaseModel):
     moves: List[MoveAnalysis]
     counts: Dict[str, int]
 
-# Global engine instances to save memory and improve performance
+
+# Global engine instance
 _GLOBAL_DEEPCASTLE_ENGINE = None
 _ENGINE_LOCK = asyncio.Lock()
-# UCI engines handle one search at a time; concurrent play/analyse on the same process
-# corrupts the protocol and can crash the binary — serialize all I/O.
 _ENGINE_IO_LOCK = asyncio.Lock()
 
 
 def _engine_hash_mb() -> int:
-    """Transposition table size in MB; lower = less RAM (env ENGINE_HASH_MB, default 64)."""
     try:
-        v = int(os.environ.get("ENGINE_HASH_MB", "64"))
+        v = int(os.environ.get("ENGINE_HASH_MB", "128"))
     except ValueError:
-        v = 64
+        v = 128
     return max(8, min(512, v))
 
 
 async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional[dict] = None):
     global _GLOBAL_DEEPCASTLE_ENGINE
 
-    # Fast path: no lock when singleton is already healthy (avoids serializing every /move).
     current_engine = _GLOBAL_DEEPCASTLE_ENGINE
     if current_engine is not None:
         try:
@@ -153,7 +163,6 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
                 print(f"[WARNING] EvalFileSmall not found at {NNUE_SMALL_PATH}")
 
             _GLOBAL_DEEPCASTLE_ENGINE = engine
-
             return engine
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
@@ -167,12 +176,19 @@ async def get_deepcastle_engine():
     )
 
 async def get_stockfish_engine():
-    # Compatibility alias: analysis now also uses DeepCastle.
     return await get_deepcastle_engine()
 
 
+async def _clear_engine_hash(engine) -> None:
+    """Send ucinewgame to clear the engine hash table and reset internal state."""
+    try:
+        await engine.send_command("ucinewgame")
+        await asyncio.wait_for(engine.ping(), timeout=5.0)
+    except Exception as e:
+        print(f"[WARNING] Failed to clear engine hash: {e}")
+
+
 async def shutdown_engine_async() -> None:
-    """Release UCI subprocess on process exit (deploy / SIGTERM)."""
     global _GLOBAL_DEEPCASTLE_ENGINE
     async with _ENGINE_IO_LOCK:
         async with _ENGINE_LOCK:
@@ -186,7 +202,6 @@ async def shutdown_engine_async() -> None:
 
 
 async def _detach_and_quit_engine(engine) -> None:
-    """After a hung search, drop the singleton and try to terminate the process."""
     global _GLOBAL_DEEPCASTLE_ENGINE
     async with _ENGINE_LOCK:
         if _GLOBAL_DEEPCASTLE_ENGINE is engine:
@@ -198,7 +213,6 @@ async def _detach_and_quit_engine(engine) -> None:
 
 
 def _search_timeout_sec(request_time: float, depth: Optional[int] = None) -> float:
-    """Wall-clock cap for a single play/analyse (env ENGINE_SEARCH_TIMEOUT_SEC, default 120)."""
     try:
         cap = float(os.environ.get("ENGINE_SEARCH_TIMEOUT_SEC", "120"))
     except ValueError:
@@ -210,7 +224,6 @@ def _search_timeout_sec(request_time: float, depth: Optional[int] = None) -> flo
 
 
 def _analyze_ply_timeout(time_per_move: float) -> float:
-    """Wall-clock cap per analyse() in /analyze-game (multipv=2 needs headroom)."""
     try:
         cap = float(os.environ.get("ENGINE_SEARCH_TIMEOUT_SEC", "120"))
     except ValueError:
@@ -237,7 +250,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Deepcastle Engine API", lifespan=lifespan)
 
-# Allow ALL for easy testing (we can restrict this later if needed)
+# FIX: Global timeout middleware — kills hung requests so they don't queue in memory
+@app.middleware("http")
+async def timeout_middleware(request: Request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=180.0)
+    except asyncio.TimeoutError:
+        return JSONResponse({"detail": "Request timed out"}, status_code=504)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -246,10 +266,10 @@ app.add_middleware(
 )
 
 
+# ─── WebSocket ─────────────────────────────────────────────────────────────────
 @app.websocket("/ws/{match_id}")
 async def websocket_endpoint(websocket: WebSocket, match_id: str):
     await manager.connect(websocket, match_id)
-    room = manager.active_connections.get(match_id, [])
     await manager.broadcast(json.dumps({"type": "join"}), match_id, exclude=websocket)
     try:
         while True:
@@ -257,27 +277,33 @@ async def websocket_endpoint(websocket: WebSocket, match_id: str):
             await manager.broadcast(data, match_id, exclude=websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket, match_id)
+        # FIX: Broadcast disconnect then nudge GC to free room state
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
+        gc.collect()
     except Exception:
         manager.disconnect(websocket, match_id)
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
+        gc.collect()
 
 
+# ─── Health ────────────────────────────────────────────────────────────────────
 @app.get("/")
 def home():
     return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
 
 
+# FIX: Accept HEAD requests from UptimeRobot (was returning 405)
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
         return {"status": "error", "message": "Missing engine binary: deepcastle"}
+    # FIX: Nudge GC on every health ping
+    gc.collect()
     return {"status": "ok", "engine": "deepcastle"}
 
 
 @app.get("/health/ready")
 async def health_ready():
-    """Optional deep check: binary exists and engine answers UCI (for orchestrators)."""
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
         raise HTTPException(status_code=503, detail="Missing engine binary")
     try:
@@ -291,8 +317,31 @@ async def health_ready():
         raise HTTPException(status_code=503, detail=str(e))
 
 
-def get_normalized_score(info) -> tuple[float, Optional[int]]:
-    """Returns the score from White's perspective in centipawns."""
+# FIX: New endpoint — call from frontend when a game starts or ends
+@app.post("/new-game")
+async def new_game():
+    """
+    Clear engine hash table between games.
+    Call this from the frontend at these moments:
+      - When user starts a new game vs bot
+      - When game ends (checkmate / resign / draw)
+      - When multiplayer match starts
+      - When multiplayer match ends
+    """
+    try:
+        engine = await get_deepcastle_engine()
+        async with _ENGINE_IO_LOCK:
+            await _clear_engine_hash(engine)
+        gc.collect()
+        return {"status": "ok", "message": "Engine hash cleared"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Helpers ───────────────────────────────────────────────────────────────────
+def get_normalized_score(info) -> Tuple[float, Optional[int]]:
     if "score" not in info:
         return 0.0, None
     raw = info["score"].white()
@@ -302,12 +351,7 @@ def get_normalized_score(info) -> tuple[float, Optional[int]]:
     return float(raw.score() or 0.0), None
 
 
-def normalize_search_stats(info: dict) -> tuple[int, int, int]:
-    """
-    Depth, nodes, and NPS from a single search. Prefer NPS = nodes / elapsed time
-    when the engine reports time so the UI stays internally consistent (UCI nps is
-    often an instantaneous rate and need not match total nodes).
-    """
+def normalize_search_stats(info: dict) -> Tuple[int, int, int]:
     depth = int(info.get("depth") or 0)
     nodes = int(info.get("nodes") or 0)
     t = info.get("time")
@@ -319,16 +363,15 @@ def normalize_search_stats(info: dict) -> tuple[int, int, int]:
     return depth, nodes, nps
 
 
-# ─── Engine Inference Route ────────────────────────────────────────────────────
+# ─── Bot Move (/move) ──────────────────────────────────────────────────────────
 @app.post("/move", response_model=MoveResponse)
 async def get_move(request: MoveRequest):
     try:
         engine = await get_deepcastle_engine()
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
-        
-        # One search: stats must come from this run (not a separate short analyse).
         tsec = _search_timeout_sec(request.time, request.depth)
+
         async with _ENGINE_IO_LOCK:
             result = await _engine_call(
                 engine,
@@ -342,12 +385,11 @@ async def get_move(request: MoveRequest):
                     engine.analyse(board, limit, info=chess.engine.INFO_ALL),
                     tsec,
                 )
-        
-        # From White's perspective in CP -> converted to Pawns for UI
+
         score_cp, mate_in = get_normalized_score(info)
-        
         depth, nodes, nps = normalize_search_stats(info)
 
+        # FIX: Use a local pv_board and delete it after use
         pv_board = board.copy()
         pv_parts = []
         for m in info.get("pv", [])[:5]:
@@ -360,16 +402,20 @@ async def get_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
+        del pv_board  # FIX: Explicitly free board copy
 
-        # Map mate score to pawns representation to not break old UI
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
 
-        # Check for opening name
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
+        best_move = result.move.uci()
+
+        # FIX: Explicitly release engine result and info objects
+        del result
+        del info
 
         return MoveResponse(
-            bestmove=result.move.uci(),
+            bestmove=best_move,
             score=score_pawns,
             depth=depth,
             nodes=nodes,
@@ -384,14 +430,16 @@ async def get_move(request: MoveRequest):
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ─── Hint Move (/analysis-move) ───────────────────────────────────────────────
 @app.post("/analysis-move", response_model=MoveResponse)
 async def get_analysis_move(request: MoveRequest):
     try:
         engine = await get_stockfish_engine()
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
-
         tsec = _search_timeout_sec(request.time, request.depth)
+
         async with _ENGINE_IO_LOCK:
             result = await _engine_call(
                 engine,
@@ -407,9 +455,9 @@ async def get_analysis_move(request: MoveRequest):
                 )
 
         score_cp, mate_in = get_normalized_score(info)
-
         depth, nodes, nps = normalize_search_stats(info)
 
+        # FIX: Use a local pv_board and delete it after use
         pv_board = board.copy()
         pv_parts = []
         for m in info.get("pv", [])[:5]:
@@ -422,14 +470,25 @@ async def get_analysis_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
+        del pv_board  # FIX: Explicitly free board copy
 
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
 
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
+        best_move = result.move.uci()
+
+        # FIX: Explicitly release engine result and info objects
+        del result
+        del info
+
+        # FIX: Clear hash after hint — hint is a one-shot search, no continuity needed
+        async with _ENGINE_IO_LOCK:
+            await _clear_engine_hash(engine)
+        gc.collect()
 
         return MoveResponse(
-            bestmove=result.move.uci(),
+            bestmove=best_move,
             score=score_pawns,
             depth=depth,
             nodes=nodes,
@@ -445,20 +504,18 @@ async def get_analysis_move(request: MoveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-import math
-import json
-import os
-from typing import Optional, List, Tuple
-
+# ─── Openings DB ───────────────────────────────────────────────────────────────
 openings_db = {}
 openings_path = os.path.join(os.path.dirname(__file__), "openings.json")
 if os.path.exists(openings_path):
     try:
         with open(openings_path, "r", encoding="utf-8") as f:
             openings_db = json.load(f)
-    except Exception as e:
+    except Exception:
         pass
 
+
+# ─── Move Classification Helpers ───────────────────────────────────────────────
 def get_win_percentage_from_cp(cp: int) -> float:
     cp_ceiled = max(-1000, min(1000, cp))
     MULTIPLIER = -0.00368208
@@ -482,7 +539,10 @@ def is_losing_or_alt_winning(pos_win_pct: float, alt_win_pct: float, is_white_mo
 
 def get_has_changed_outcome(last_win_pct: float, pos_win_pct: float, is_white_move: bool) -> bool:
     diff = (pos_win_pct - last_win_pct) * (1 if is_white_move else -1)
-    return diff > 10.0 and ((last_win_pct < 50.0 and pos_win_pct > 50.0) or (last_win_pct > 50.0 and pos_win_pct < 50.0))
+    return diff > 10.0 and (
+        (last_win_pct < 50.0 and pos_win_pct > 50.0) or
+        (last_win_pct > 50.0 and pos_win_pct < 50.0)
+    )
 
 def get_is_only_good_move(pos_win_pct: float, alt_win_pct: float, is_white_move: bool) -> bool:
     diff = (pos_win_pct - alt_win_pct) * (1 if is_white_move else -1)
@@ -492,10 +552,15 @@ def is_simple_recapture(fen_two_moves_ago: str, previous_move: chess.Move, playe
     if previous_move.to_square != played_move.to_square:
         return False
     b = chess.Board(fen_two_moves_ago)
-    return b.piece_at(previous_move.to_square) is not None
+    result = b.piece_at(previous_move.to_square) is not None
+    del b  # FIX: Free temp board
+    return result
 
 def get_material_difference(board: chess.Board) -> int:
-    values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
+    values = {
+        chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3,
+        chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0
+    }
     w = sum(values.get(p.piece_type, 0) for p in board.piece_map().values() if p.color == chess.WHITE)
     b = sum(values.get(p.piece_type, 0) for p in board.piece_map().values() if p.color == chess.BLACK)
     return w - b
@@ -505,22 +570,21 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
         return False
     start_diff = get_material_difference(board)
     white_to_play = board.turn == chess.WHITE
-    
+
     sim_board = board.copy()
     moves = [played_move] + best_pv
     if len(moves) % 2 == 1:
         moves = moves[:-1]
-        
+
     captured_w = []
     captured_b = []
     non_capturing = 1
-    
+
     for m in moves:
         if m in sim_board.legal_moves:
             captured_piece = sim_board.piece_at(m.to_square)
             if sim_board.is_en_passant(m):
                 captured_piece = chess.Piece(chess.PAWN, not sim_board.turn)
-                
             if captured_piece:
                 if sim_board.turn == chess.WHITE:
                     captured_b.append(captured_piece.piece_type)
@@ -534,19 +598,20 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
             sim_board.push(m)
         else:
             break
-            
+
     for p in captured_w[:]:
         if p in captured_b:
             captured_w.remove(p)
             captured_b.remove(p)
-            
+
     if abs(len(captured_w) - len(captured_b)) <= 1 and all(p == chess.PAWN for p in captured_w + captured_b):
+        del sim_board
         return False
-        
+
     end_diff = get_material_difference(sim_board)
+    del sim_board  # FIX: Free temp board
     mat_diff = end_diff - start_diff
     player_rel = mat_diff if white_to_play else -mat_diff
-    
     return player_rel < 0
 
 def get_move_classification(
@@ -571,10 +636,12 @@ def get_move_classification(
     if alt_win_pct is not None and diff >= -2.0:
         is_recapture = False
         if fen_two_moves_ago and uci_next_two_moves:
-             is_recapture = is_simple_recapture(fen_two_moves_ago, uci_next_two_moves[0], uci_next_two_moves[1])
-             
+            is_recapture = is_simple_recapture(
+                fen_two_moves_ago, uci_next_two_moves[0], uci_next_two_moves[1]
+            )
         if not is_recapture and not is_losing_or_alt_winning(pos_win_pct, alt_win_pct, is_white_move):
-            if get_has_changed_outcome(last_win_pct, pos_win_pct, is_white_move) or get_is_only_good_move(pos_win_pct, alt_win_pct, is_white_move):
+            if get_has_changed_outcome(last_win_pct, pos_win_pct, is_white_move) or \
+               get_is_only_good_move(pos_win_pct, alt_win_pct, is_white_move):
                 return "Great"
 
     if best_move_before and played_move == best_move_before:
@@ -582,21 +649,22 @@ def get_move_classification(
 
     if diff < -20.0: return "Blunder"
     if diff < -10.0: return "Mistake"
-    if diff < -5.0: return "Inaccuracy"
-    if diff < -2.0: return "Good"
+    if diff < -5.0:  return "Inaccuracy"
+    if diff < -2.0:  return "Good"
     return "Excellent"
 
+
+# ─── Game Analysis (/analyze-game) ────────────────────────────────────────────
 @app.post("/analyze-game", response_model=AnalyzeResponse)
 async def analyze_game(request: AnalyzeRequest):
-    engine = None
     try:
         engine = await get_stockfish_engine()
         board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
         limit = chess.engine.Limit(time=request.time_per_move)
-        
+
         analysis_results = []
-        
         ply_timeout = _analyze_ply_timeout(request.time_per_move)
+
         async with _ENGINE_IO_LOCK:
             infos_before = await _engine_call(
                 engine,
@@ -604,17 +672,20 @@ async def analyze_game(request: AnalyzeRequest):
                 ply_timeout,
             )
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
-        
+
         counts = {
-            "Book": 0, "Brilliant": 0, "Great": 0, "Best": 0, 
-            "Excellent": 0, "Good": 0, "Inaccuracy": 0, 
+            "Book": 0, "Brilliant": 0, "Great": 0, "Best": 0,
+            "Excellent": 0, "Good": 0, "Inaccuracy": 0,
             "Mistake": 0, "Blunder": 0
         }
 
         player_is_white = (request.player_color.lower() == "white")
-        
-        fen_history = [board.fen()]
-        move_history = []
+
+        # FIX: Sliding window instead of ever-growing lists
+        # We only ever need the last 3 FENs and last 2 moves for classification
+        fen_window: List[str] = [board.fen()]
+        move_window: List[chess.Move] = []
+
         total_cpl = 0.0
         player_moves_count = 0
         current_score, _ = get_normalized_score(infos_before[0])
@@ -622,34 +693,39 @@ async def analyze_game(request: AnalyzeRequest):
         for i, san_move in enumerate(request.moves):
             is_white_turn = board.turn == chess.WHITE
             is_player_turn = is_white_turn if player_is_white else not is_white_turn
-            
-            score_before = current_score
-            
+
             try:
                 move = board.parse_san(san_move)
             except Exception:
-                break # Invalid move
+                break
 
             info_dict = infos_before[0]
             pv_list = info_dict.get("pv", [])
             best_move_before = pv_list[0] if pv_list else None
-            
+
             score_before, _ = get_normalized_score(info_dict)
             win_pct_before = get_win_percentage(info_dict)
+
             alt_win_pct_before: Optional[float] = None
             if len(infos_before) > 1:
-                # Find the first alternative move that is not the played move
                 for line in infos_before:
                     if line.get("pv") and line.get("pv")[0] != move:
                         alt_win_pct_before = get_win_percentage(line)
                         break
 
+            # FIX: Copy board before move, delete right after classification
             board_before_move = board.copy()
             board.push(move)
-            
-            move_history.append(move)
-            fen_history.append(board.fen())
-            
+
+            # FIX: Sliding window — discard oldest entry beyond what we need
+            move_window.append(move)
+            if len(move_window) > 2:
+                move_window.pop(0)
+
+            fen_window.append(board.fen())
+            if len(fen_window) > 3:
+                fen_window.pop(0)
+
             async with _ENGINE_IO_LOCK:
                 infos_after_raw = await _engine_call(
                     engine,
@@ -657,24 +733,23 @@ async def analyze_game(request: AnalyzeRequest):
                     ply_timeout,
                 )
             infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
-            
+
             info_after_dict: dict = infos_after[0]
-            
+
             win_pct_after = get_win_percentage(info_after_dict)
             score_after, _ = get_normalized_score(info_after_dict)
             current_score = score_after
-            
-            best_pv_after = info_after_dict.get("pv", [])
-            
-            fen_two_moves_ago = None
-            uci_next_two_moves = None
-            if len(move_history) >= 2:
-                fen_two_moves_ago = fen_history[-3]
-                uci_next_two_moves = (move_history[-2], move_history[-1])
 
+            best_pv_after = info_after_dict.get("pv", [])
+
+            fen_two_moves_ago = fen_window[0] if len(fen_window) == 3 else None
+            uci_next_two_moves = tuple(move_window[-2:]) if len(move_window) >= 2 else None
+
+            # Classify
             cls = "Book"
             opening_name = None
             board_fen_only = board.fen().split(" ")[0]
+
             if board_fen_only in openings_db:
                 cls = "Book"
                 opening_name = openings_db[board_fen_only]
@@ -691,18 +766,20 @@ async def analyze_game(request: AnalyzeRequest):
                     board_before_move=board_before_move,
                     best_pv_after=best_pv_after
                 )
-            
+
+            # FIX: Free board copy immediately after classification is done
+            del board_before_move
+
             move_gain = score_after - score_before if is_white_turn else score_before - score_after
-            cpl = max(0, -move_gain)
-            cpl = min(cpl, 1000.0)
-            
+            cpl = max(0.0, min(-move_gain, 1000.0))
+
             if is_player_turn:
                 total_cpl += cpl
                 player_moves_count += 1
                 counts[cls] = counts.get(cls, 0) + 1
-            
+
             analysis_results.append(MoveAnalysis(
-                move_num=i+1,
+                move_num=i + 1,
                 san=san_move,
                 classification=cls,
                 cpl=float(cpl),
@@ -711,20 +788,25 @@ async def analyze_game(request: AnalyzeRequest):
                 best_move=best_move_before.uci() if best_move_before else "",
                 opening=opening_name
             ))
-            
-            infos_before = infos_after
 
-        # Win probability matching accuracy formula
-        # Accuracy = 100 * exp(-0.02 * avg_cpl) smoothed
+            # FIX: Release large engine result objects after each ply
+            infos_before = infos_after
+            infos_after = None
+            info_after_dict = None
+            infos_after_raw = None
+
+        # FIX: Free sliding windows after loop
+        del fen_window
+        del move_window
+
         avg_cpl = total_cpl / max(1, player_moves_count)
-        
-        # Simple heuristic mapping for Accuracy & Elo
-        # 0 avg loss -> 100%
-        # ~100 avg loss -> ~60%
         accuracy = max(10.0, min(100.0, 100.0 * math.exp(-0.005 * avg_cpl)))
-        
-        # Exponential Elo Decay calibrated to 3600 max engine strength
         estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.015 * avg_cpl)))))
+
+        # FIX: Clear engine hash after full game analysis — analysis fills hash very fast
+        async with _ENGINE_IO_LOCK:
+            await _clear_engine_hash(engine)
+        gc.collect()
 
         return AnalyzeResponse(
             accuracy=round(accuracy, 1),
@@ -732,7 +814,7 @@ async def analyze_game(request: AnalyzeRequest):
             moves=analysis_results,
             counts=counts
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -742,5 +824,4 @@ async def analyze_game(request: AnalyzeRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    # Hugging Face Spaces port is 7860
     uvicorn.run(app, host="0.0.0.0", port=7860)
