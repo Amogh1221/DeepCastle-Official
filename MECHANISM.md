@@ -634,42 +634,42 @@ Browser → POST /move { fen, time }
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  TRAINING PHASE  (Local GPU Machine)                                        ║
+║  TRAINING PHASE  (Local GPU Machine)                                         ║
 ║                                                                              ║
-║  large_gensfen_multipvdiff_100_d9.binpack                                   ║
-║  (100M+ positions × depth-9 Stockfish scores)                               ║
+║  large_gensfen_multipvdiff_100_d9.binpack                                    ║
+║  (100M+ positions × depth-9 Stockfish scores)                                ║
 ║       ↓                                                                      ║
-║  C++ SparseBatchDataset  →  HalfKAv2 feature vectors (sparse 24,576-dim)    ║
+║  C++ SparseBatchDataset  →  HalfKAv2 feature vectors (sparse 24,576-dim)     ║
 ║       ↓                                                                      ║
-║  DeepCastle7 forward pass:                                                  ║
-║    Embedding lookup → SqrCReLU product pooling                              ║
+║  DeepCastle7 forward pass:                                                   ║
+║    Embedding lookup → SqrCReLU product pooling                               ║
 ║    + PSQT shortcut                                                           ║
 ║       ↓                                                                      ║
-║  nnue_loss (symmetric sigmoid power-law)                                    ║
+║  nnue_loss (symmetric sigmoid power-law)                                     ║
 ║       ↓                                                                      ║
-║  Ranger21.step() + weight clipping                                          ║
+║  Ranger21.step() + weight clipping                                           ║
 ║       ↓                                                                      ║
-║  deepcastle7_best.pt  (PyTorch checkpoint, ~100MB)                          ║
+║  deepcastle7_best.pt  (PyTorch checkpoint, ~100MB)                           ║
 ║       ↓                                                                      ║
-║  export_nnue.py: float32 → int16/int8 quantization                         ║
+║  export_nnue.py: float32 → int16/int8 quantization                           ║
 ║       ↓                                                                      ║
-║  engine/output.nnue & small_output.nnue                      ║
+║  engine/output.nnue & small_output.nnue                                      ║
 ╚══════════════════════════════╦═══════════════════════════════════════════════╝
                                ║
 ╔══════════════════════════════╩═══════════════════════════════════════════════╗
 ║  COMPILATION PHASE                                                           ║
 ║                                                                              ║
-║  engine/src/  (Stockfish C++ source, modified)                              ║
-║       ↓  make -j$(nproc) build ARCH=x86-64-sse41-popcnt                    ║
-║  engine/deepcastle  (Linux ELF binary, ~970 KB)                             ║
+║  engine/src/  (Stockfish C++ source, modified)                               ║
+║       ↓  make -j$(nproc) build ARCH=x86-64-sse41-popcnt                      ║
+║  engine/deepcastle  (Linux ELF binary, ~970 KB)                              ║
 ╚══════════════════════════════╦═══════════════════════════════════════════════╝
                                ║
 ╔══════════════════════════════╩═══════════════════════════════════════════════╗
 ║  GITHUB REPOSITORY                                                           ║
 ║                                                                              ║
 ║  git push origin main                                                        ║
-║    ├──→  Vercel webhook → Next.js build → Frontend deploy                   ║
-║    └──→  HF Spaces webhook → Docker rebuild → Backend deploy                ║
+║    ├──→  Vercel webhook → Next.js build → Frontend deploy                    ║
+║    └──→  HF Spaces webhook → Docker rebuild → Backend deploy                 ║
 ╚══════════════════════════════╦═══════════════════════════════════════════════╝
                                ║
               ┌────────────────┴────────────────┐
@@ -678,12 +678,12 @@ Browser → POST /move { fen, time }
 ║  HF Spaces Docker       ║      ║  Vercel (Next.js 16)      ║
 ║                         ║      ║                           ║
 ║  deepcastle (ELF)       ║      ║  react-chessboard v5      ║
-║  output.nnue & small_output.nnue ║  chess.js validation      ║
+║ output.nnue & small_output.nnue║  chess.js validation      ║
 ║  FastAPI :7860          ║      ║  Real-time eval bar       ║
-║                         ║←────║  POST /move (FEN)         ║
-║  Search:                ║────→║  Receives bestmove+stats   ║
-║  PVS + LMR + NNUE eval  ║      ║  (NPS varies; ~400k–600k    ║
-║                         ║      ║   typical on small VMs)     ║
+║                         ║←──── ║  POST /move (FEN)         ║
+║  Search:                ║────→ ║  Receives bestmove+stats  ║
+║  PVS + LMR + NNUE eval  ║      ║  (NPS varies; ~400k–600k  ║
+║                         ║      ║   typical on small VMs)   ║
 ╚═════════════════════════╝      ╚═══════════════════════════╝
 ```
 
