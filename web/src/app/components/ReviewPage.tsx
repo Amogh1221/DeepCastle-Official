@@ -259,7 +259,7 @@ export function ReviewPage({
   }
 
   const moveHistoryList = (
-    <div ref={moveListRef} className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5 custom-scrollbar overscroll-contain">
+    <div ref={moveListRef} className="flex-1 overflow-y-auto min-h-0 w-full px-1.5 py-2 space-y-0.5 custom-scrollbar overscroll-contain">
       {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
         const whitePly = i * 2 + 1;
         const blackPly = i * 2 + 2;
@@ -268,10 +268,10 @@ export function ReviewPage({
         const whiteAnalysis = analysis?.moves?.[i * 2];
         const blackAnalysis = analysis?.moves?.[i * 2 + 1];
         return (
-          <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/5">
-            <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
+          <div key={i} className="flex w-full min-w-0 items-center gap-0.5 text-[11px] sm:text-xs rounded-lg hover:bg-white/5">
+            <span className="text-slate-600 w-6 sm:w-7 text-right shrink-0 pr-0.5">{i + 1}.</span>
             <button type="button" data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
-              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+              className={`min-w-0 flex-1 flex items-center gap-1 px-1.5 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
               {whiteAnalysis && (
                 <img
                   src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
@@ -284,7 +284,7 @@ export function ReviewPage({
             </button>
             <button type="button" data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
               disabled={!blackMove}
-              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+              className={`min-w-0 flex-1 flex items-center gap-1 px-1.5 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
               {blackAnalysis && (
                 <img
                   src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
@@ -342,12 +342,12 @@ export function ReviewPage({
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 flex-1 min-h-0 xl:overflow-hidden xl:items-stretch">
 
           {/* Col 1: Board + graph + mobile nav — larger share of width */}
-          <div className="flex flex-col gap-3 w-full xl:flex-[1.4] xl:min-w-0 xl:max-w-[min(92vw,680px)] xl:basis-0 xl:min-h-0">
+          <div className="flex flex-col gap-3 w-full xl:flex-[1.4] xl:min-w-0 xl:max-w-[min(92vw,680px)] xl:basis-0 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
 
-            {/* Board row with eval bar */}
-            <div className="flex gap-2 sm:gap-3">
+            {/* Board row — max size leaves room for eval chart inside viewport */}
+            <div className="flex gap-2 sm:gap-3 min-h-0 shrink-0 xl:max-h-[min(100%,calc(100dvh-270px))]">
               {/* Eval bar */}
-              <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[250px]">
+              <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[120px]">
                 <div
                   className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400"
                   style={{ height: `${100 - evalBarWhite}%` }}
@@ -359,8 +359,8 @@ export function ReviewPage({
               </div>
 
               {/* Board */}
-              <div className="flex-1 relative bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
-                <div className="aspect-square w-full relative">
+              <div className="flex-1 relative bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible min-w-0 min-h-0 flex items-center justify-center">
+                <div className="aspect-square w-full max-w-[min(100%,calc(100dvh-270px))] relative">
                   <Chessboard
                     options={{
                       position: displayFen,
@@ -405,16 +405,17 @@ export function ReviewPage({
             </div>
 
             {/* Eval Graph */}
-            <div className="h-28 sm:h-32 bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:p-4 shrink-0 relative">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Evaluation</span>
+            <div className="flex flex-col h-[7.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
+              <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
+                <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
                 {liveEval && (
-                  <span className={`text-xs font-black ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
+                  <span className={`text-xs font-black tabular-nums truncate min-w-0 ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
                     {liveEval}
                   </span>
                 )}
               </div>
-              <ResponsiveContainer width="100%" height="78%">
+              <div className="flex-1 min-h-[3rem] w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} onClick={(e: any) => {
                   try {
                     if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
@@ -440,6 +441,7 @@ export function ReviewPage({
                   <Area type="monotone" dataKey="eval" stroke="#10b981" strokeWidth={2} fill="url(#evalGrad)" dot={false} activeDot={{ r: 5, fill: "#34d399" }} />
                 </AreaChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Nav controls (Mobile only) */}
@@ -660,8 +662,8 @@ export function ReviewPage({
           </div>
 
           {/* Col 3: Move history — sole scroll region on desktop */}
-          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch xl:w-[260px] 2xl:w-[272px] xl:shrink-0 w-full rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-white/5 shrink-0 bg-black/25">
+          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch w-full xl:w-[320px] 2xl:w-[360px] xl:min-w-[300px] xl:shrink-0 rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
+            <div className="px-2.5 sm:px-3 py-2.5 border-b border-white/5 shrink-0 bg-black/25">
               <span className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Move history</span>
             </div>
             {moveHistoryList}
