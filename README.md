@@ -34,14 +34,44 @@
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture & Pipeline
+
+### 1. Training & Export (The Brain)
+The engine's evaluation is powered by a custom-trained NNUE.
+
+```mermaid
+graph LR
+    A[Gensfen Data Gen] --> B[Binpack Processing]
+    B --> C[PyTorch Pipeline]
+    C -- "Ranger21 Optimizer" --> D[DeepCastle7 Checkpoint]
+    D -- "Quantization" --> E[output.nnue Binary]
+```
+
+*   **Training Data:** Generated via Stockfish `gensfen` (quiet positions at depth 9).
+*   **Encoding:** Features are transformed into HalfKAv2 sparse tensors.
+*   **Quantization:** Float32 weights are converted to `int16` (embedding) and `int8` (dense layers) to unlock high-speed SIMD performance.
+
+### 2. Compilation (The Muscle)
+The engine is built on a high-performance C++ core.
+
+```mermaid
+graph LR
+    F[C++ Source Core] --> G[Makefile Build]
+    G -- "ARCH=x86-64-avx2" --> H[Deepcastle Binary]
+    H -- "Map at Runtime" --> I[output.nnue]
+```
+
+*   **Stockfish-Derived:** Uses the state-of-the-art Stockfish search/UCI codebase.
+*   **SIMD Optimization:** Built with architecture-specific flags (SSE4.1, AVX2, or BMI2) for maximum throughput.
+
+### 3. Deployment (Full Stack)
+Built as a cloud-native application using Docker.
 
 ```mermaid
 graph TD
-    A[Browser / Next.js] -- "POST /move" --> B[FastAPI / Docker]
-    B -- "UCI stdin/stdout" --> C[Deepcastle Binary]
-    C -- "EvalFile" --> D[output.nnue]
-    C -- "EvalFileSmall" --> E[small_output.nnue]
+    J[Browser / Next.js] -- "POST /move" --> K[FastAPI / Docker]
+    K -- "UCI stdin/stdout" --> L[Deepcastle Binary]
+    L -- "NNUE Lookup" --> M[output.nnue]
 ```
 
 *   **`web/`**: Next.js App (React 19, Tailwind CSS 4, Framer Motion).
