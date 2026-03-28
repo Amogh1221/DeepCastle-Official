@@ -342,7 +342,7 @@ export function ReviewPage({
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
           {/* Col 1: Board fills column height; evaluation graph pinned to bottom (xl) */}
-          <div className="flex flex-col w-full min-w-0 flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-1.5 sm:gap-3 min-h-[300px] sm:min-h-[450px]">
+          <div className="flex flex-col w-full min-w-0 flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-1 sm:gap-3 min-h-[420px] sm:min-h-[450px]">
 
             {/* Board region — grows so eval sits at bottom with no dead space below */}
             <div className="flex flex-1 min-h-0 flex-col">
@@ -360,8 +360,8 @@ export function ReviewPage({
               </div>
 
               {/* Board: square side = min(container width, height) so 8×8 never overflows (w-full+aspect-square was clipping bottom rank). */}
-              <div className="relative flex h-full min-h-[250px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1.5 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
-                <div className="relative mx-auto aspect-square w-[94%] sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
+              <div className="relative flex h-full min-h-[380px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
+                <div className="relative mx-auto aspect-square w-full sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                   <Chessboard
                     options={{
                       id: "review-board",
@@ -411,7 +411,7 @@ export function ReviewPage({
             </div>
 
             {/* Eval Graph — pinned to bottom of column */}
-            <div className="flex flex-col h-[7.25rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
+            <div className="flex flex-col h-[6.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-2 py-1 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
               <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
                 <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
                 {liveEval && (
@@ -497,7 +497,7 @@ export function ReviewPage({
 
                 {/* Accuracy + Elo */}
                 <div className="flex items-stretch border-b border-white/5 shrink-0">
-                  <div className="flex-1 px-4 py-3">
+                  <div className="flex-1 px-3 py-2">
                     <div className="flex justify-between mb-1.5">
                       <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Accuracy</span>
                       <span className="text-sm font-black text-emerald-400">{analysis?.accuracy ?? "—"}%</span>
