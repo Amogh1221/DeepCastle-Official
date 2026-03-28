@@ -268,7 +268,7 @@ def home():
     return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
         return {"status": "error", "message": "Missing engine binary: deepcastle"}
