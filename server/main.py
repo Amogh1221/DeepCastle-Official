@@ -11,7 +11,24 @@ import chess.engine
 import asyncio
 import json
 import gc
+import ctypes
 import psutil
+
+# ─── Force memory back to OS (Linux/HF compatible) ────────────────────────────
+def force_memory_release():
+    """
+    Run GC twice (catches cyclic references missed on first pass),
+    then call malloc_trim to return freed pages back to the OS.
+    Without this, Python holds freed memory in its own pool and
+    the OS still shows high RAM even after objects are deleted.
+    """
+    gc.collect()
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
 
 # ─── Multiplayer / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
@@ -244,15 +261,13 @@ async def _engine_call(engine, coro, timeout_sec: float):
 
 
 # ─── Background Memory Cleanup Task ───────────────────────────────────────────
-# RAM threshold in MB above which engine hash is also cleared (tune to your HF plan)
 _RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "400"))
-# How often to run the cleanup in seconds (default: 5 minutes)
 _RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "300"))
 
 async def memory_cleanup_task():
     """
     Background task that runs every 5 minutes.
-    - Always nudges Python GC to free unreferenced objects.
+    - Always runs GC twice and malloc_trim to return memory to OS.
     - If RAM exceeds threshold, also clears engine hash table.
     """
     while True:
@@ -260,9 +275,6 @@ async def memory_cleanup_task():
         try:
             process = psutil.Process(os.getpid())
             mem_mb = process.memory_info().rss / 1024 / 1024
-
-            # Always run Python GC
-            gc.collect()
 
             if mem_mb > _RAM_CLEANUP_THRESHOLD_MB:
                 print(f"[CLEANUP] RAM at {mem_mb:.1f}MB (threshold {_RAM_CLEANUP_THRESHOLD_MB}MB) — clearing engine hash")
@@ -274,11 +286,13 @@ async def memory_cleanup_task():
                                 await _clear_engine_hash(engine)
                     except Exception:
                         pass
-                gc.collect()
+                force_memory_release()
                 after_mb = process.memory_info().rss / 1024 / 1024
                 print(f"[CLEANUP] Done. RAM: {mem_mb:.1f}MB → {after_mb:.1f}MB")
             else:
-                print(f"[CLEANUP] RAM at {mem_mb:.1f}MB — OK, no action needed")
+                # Always nudge GC + malloc_trim even when RAM is fine
+                force_memory_release()
+                print(f"[CLEANUP] RAM at {mem_mb:.1f}MB — OK")
 
         except Exception as e:
             print(f"[CLEANUP] Error during cleanup: {e}")
@@ -286,11 +300,9 @@ async def memory_cleanup_task():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background memory cleanup task on boot
     cleanup_task = asyncio.create_task(memory_cleanup_task())
     print(f"[STARTUP] Memory cleanup task started (every {_RAM_CLEANUP_INTERVAL_SEC}s, threshold {_RAM_CLEANUP_THRESHOLD_MB}MB)")
     yield
-    # On shutdown: cancel cleanup task then quit engine
     cleanup_task.cancel()
     try:
         await cleanup_task
@@ -329,11 +341,11 @@ async def websocket_endpoint(websocket: WebSocket, match_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, match_id)
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
-        gc.collect()
+        force_memory_release()
     except Exception:
         manager.disconnect(websocket, match_id)
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
-        gc.collect()
+        force_memory_release()
 
 
 # ─── Health & Monitoring ───────────────────────────────────────────────────────
@@ -347,7 +359,7 @@ def home():
 def health():
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
         return {"status": "error", "message": "Missing engine binary: deepcastle"}
-    gc.collect()
+    force_memory_release()
     return {"status": "ok", "engine": "deepcastle"}
 
 
@@ -368,20 +380,18 @@ async def health_ready():
 
 @app.get("/ram")
 def ram_usage():
-    """Monitor RAM usage — call this anytime to check memory health."""
+    """Monitor RAM usage — call anytime to check memory health."""
     process = psutil.Process(os.getpid())
     mem = process.memory_info()
     mem_mb = mem.rss / 1024 / 1024
     return {
-        "rss_mb": round(mem_mb, 2),                        # actual RAM used
-        "vms_mb": round(mem.vms / 1024 / 1024, 2),         # virtual memory
-        "threshold_mb": _RAM_CLEANUP_THRESHOLD_MB,          # cleanup trigger
-        "cleanup_interval_sec": _RAM_CLEANUP_INTERVAL_SEC,  # how often cleanup runs
+        "rss_mb": round(mem_mb, 2),
+        "vms_mb": round(mem.vms / 1024 / 1024, 2),
+        "threshold_mb": _RAM_CLEANUP_THRESHOLD_MB,
+        "cleanup_interval_sec": _RAM_CLEANUP_INTERVAL_SEC,
         "status": "high" if mem_mb > _RAM_CLEANUP_THRESHOLD_MB else "ok",
-        "active_rooms": len(manager.active_connections),    # live websocket rooms
-        "active_connections": sum(
-            len(v) for v in manager.active_connections.values()
-        ),
+        "active_rooms": len(manager.active_connections),
+        "active_connections": sum(len(v) for v in manager.active_connections.values()),
     }
 
 
@@ -400,7 +410,7 @@ async def new_game():
         engine = await get_deepcastle_engine()
         async with _ENGINE_IO_LOCK:
             await _clear_engine_hash(engine)
-        gc.collect()
+        force_memory_release()
         return {"status": "ok", "message": "Engine hash cleared"}
     except HTTPException:
         raise
@@ -469,15 +479,15 @@ async def get_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
-        del pv_board  # FIX: Free board copy
+        del pv_board
 
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
         best_move = result.move.uci()
 
-        del result  # FIX: Free engine result
-        del info    # FIX: Free info dict
+        del result
+        del info
 
         return MoveResponse(
             bestmove=best_move,
@@ -534,20 +544,20 @@ async def get_analysis_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
-        del pv_board  # FIX: Free board copy
+        del pv_board
 
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
         best_move = result.move.uci()
 
-        del result  # FIX: Free engine result
-        del info    # FIX: Free info dict
+        del result
+        del info
 
-        # FIX: Clear hash after hint — one-shot search, no continuity needed
+        # FIX: Clear hash + force memory back to OS after hint
         async with _ENGINE_IO_LOCK:
             await _clear_engine_hash(engine)
-        gc.collect()
+        force_memory_release()
 
         return MoveResponse(
             bestmove=best_move,
@@ -615,7 +625,7 @@ def is_simple_recapture(fen_two_moves_ago: str, previous_move: chess.Move, playe
         return False
     b = chess.Board(fen_two_moves_ago)
     result = b.piece_at(previous_move.to_square) is not None
-    del b  # FIX: Free temp board
+    del b
     return result
 
 def get_material_difference(board: chess.Board) -> int:
@@ -671,7 +681,7 @@ def get_is_piece_sacrifice(board: chess.Board, played_move: chess.Move, best_pv:
         return False
 
     end_diff = get_material_difference(sim_board)
-    del sim_board  # FIX: Free temp board
+    del sim_board
     mat_diff = end_diff - start_diff
     player_rel = mat_diff if white_to_play else -mat_diff
     return player_rel < 0
@@ -861,10 +871,10 @@ async def analyze_game(request: AnalyzeRequest):
         accuracy = max(10.0, min(100.0, 100.0 * math.exp(-0.005 * avg_cpl)))
         estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.015 * avg_cpl)))))
 
-        # FIX: Clear engine hash after full game analysis — analysis fills hash very fast
+        # FIX: Clear engine hash + force memory back to OS after full game analysis
         async with _ENGINE_IO_LOCK:
             await _clear_engine_hash(engine)
-        gc.collect()
+        force_memory_release()
 
         return AnalyzeResponse(
             accuracy=round(accuracy, 1),
