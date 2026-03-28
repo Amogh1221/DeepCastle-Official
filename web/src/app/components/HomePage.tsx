@@ -44,7 +44,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     {
       icon: <Zap className="w-6 h-6" />,
       label: "Model Size",
-      value: "~6.8M Parameters",
+      value: "~6.6M Parameters",
       sub: "Optimized for AVX2 & SSE4.1 CPUs",
       color: "from-yellow-500 to-amber-600",
     },
@@ -98,7 +98,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
       version: "v7 · Current",
       label: "Improved dataset & C++ dataloaders",
       elo: "Unknown",
-      desc: "Reworked the v7 setup around a stronger training dataset (Stockfish gensfen self-play: depth 9, multipvdiff_100, quiet positions) for better validation accuracy. Training throughput uses the C++ SparseBatchDataset path (binpack) so batches load fast instead of bottlenecking on Python. The stack is FastAPI + a single long-lived UCI engine on Hugging Face Spaces, with the Next.js app on Vercel. Casual match sample vs Stockfish 18: 0W/1L/21D — illustrative, not a formal rating.",
+      desc: "Reworked the v7 setup around a stronger training dataset (Stockfish gensfen self-play: depth 9, multipvdiff_100, quiet positions) for better validation accuracy. Training throughput uses the C++ SparseBatchDataset path (binpack) so batches load fast instead of bottlenecking on Python. The stack is FastAPI + a single long-lived UCI engine on Hugging Face Spaces, with the Next.js app on Vercel. Casual match sample vs Stockfish 17.1 (dev): 0W/1L/21D — illustrative, not a formal rating.",
     },
   ];
 
@@ -132,7 +132,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           </h1>
           <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed mb-8 sm:mb-10 px-2 sm:px-0">
             A custom-built NNUE chess engine — trained on 100M+ Stockfish self-play positions at depth 9,
-            powered by alpha-beta search and a HalfKAv2 neural network.
+            powered by alpha-beta search and a HalfKAv2_hm^ neural network.
           </p>
 
           <div className="flex flex-wrap gap-3 justify-center">

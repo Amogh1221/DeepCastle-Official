@@ -17,7 +17,6 @@
 It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) with a powerful **Stockfish-derived search core** and a modern web interface.
 
 
-> [!TIP]
 > **Play Live:** [deep-castle-official.vercel.app](https://deep-castle-official.vercel.app/)
 
  ---
@@ -25,10 +24,11 @@ It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) wit
 ## 🚀 Key Features
 
 ### 🧠 The Evaluation Core (NNUE)
-*   **Architecture:** Custom **HalfKAv2** neural network (DeepCastle7 class) with ~500K parameters.
+*   **Architecture:** Custom **HalfKAv2_hm^** neural network with ~6.6M parameters.
 *   **Multi-Phase Eval:** 8 specialized internal networks (buckets) that automatically switch based on piece count (Opening → Middle → Endgame).
 *   **Product Pooling (SqrCReLU):** Captures high-order multiplicative interactions between White and Black perspectives.
 *   **Quantization:** Fully quantized to `int16`/`int8` for lightning-fast SIMD inference.
+
 
 ### 🔍 Search Core
 *   **Algorithm:** Alpha-Beta Minimax with Principal Variation Search (PVS).
