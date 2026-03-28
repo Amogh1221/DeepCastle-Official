@@ -44,8 +44,8 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     {
       icon: <Zap className="w-6 h-6" />,
       label: "Speed",
-      value: "~5M NPS",
-      sub: "Nodes per second",
+      value: "~400–600k NPS",
+      sub: "Typical in the web UI; varies by CPU & position",
       color: "from-yellow-500 to-amber-600",
     },
     {
@@ -96,9 +96,9 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     },
     {
       version: "v7 · Current",
-      label: "Full Deployment",
+      label: "Improved dataset & C++ dataloaders",
       elo: "Unknown",
-      desc: "Switched to Stockfish gensfen self-play data (depth 9, multipvdiff_100, quiet positions only). Used C++ SparseBatchDataset for 500K+ pos/sec loading. Deployed as FastAPI on Hugging Face Spaces + Next.js frontend on Vercel. Result: 0W/1L/21D vs Stockfish 18 — statistically within one sigma.",
+      desc: "Reworked the v7 setup around a stronger training dataset (Stockfish gensfen self-play: depth 9, multipvdiff_100, quiet positions) for better validation accuracy. Training throughput uses the C++ SparseBatchDataset path (binpack) so batches load fast instead of bottlenecking on Python. The stack is FastAPI + a single long-lived UCI engine on Hugging Face Spaces, with the Next.js app on Vercel. Casual match sample vs Stockfish 18: 0W/1L/21D — illustrative, not a formal rating.",
     },
   ];
 

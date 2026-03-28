@@ -1,7 +1,9 @@
-# 🏰 Deepcastle v7 — Full Architecture & Mechanism
+# 🏰 Deepcastle v7 — Architecture & mechanism
 
-> A complete technical deep-dive: from raw training data to a deployed 3,604 Elo chess engine.  
-> **Written for beginners — no prior NNUE knowledge required.**
+> End-to-end walkthrough: datasets → HalfKP → training → `.nnue` → C++ search → FastAPI → browser.  
+> **Beginner-friendly.** Strength numbers here are **illustrative** unless you run your own long matches.
+
+**Important:** The **backend** runs **your** DeepCastle binary with **`output.nnue`**, not vanilla Stockfish’s default brain. NPS figures in the **~400k–600k** range on typical cloud CPUs are normal at short controls; they are **not** “~5M NPS” marketing numbers.
 
 ---
 
@@ -15,7 +17,7 @@
 6. [Phase 5 — Exporting to the .nnue Binary](#6-phase-5--exporting-to-the-nnue-binary)
 7. [Phase 6 — C++ Engine Compilation](#7-phase-6--c-engine-compilation)
 8. [Phase 7 — Search Algorithm — How the Engine Thinks](#8-phase-7--search-algorithm--how-the-engine-thinks)
-9. [Phase 8 — Cloud Deployment (HF Spaces + Vercel)](#9-phase-8--cloud-deployment-hf-spaces--vercel)
+9. [Phase 8 — Backend, API & deployment](#9-phase-8--backend-api--deployment)
 10. [Full System Diagram](#10-full-system-diagram)
 11. [Performance Benchmarks](#11-performance-benchmarks)
 
@@ -92,6 +94,10 @@ large_gensfen_multipvdiff_100_d9.binpack
 ### Why not use human games?
 
 Human games contain blunders, stylistic biases, and far fewer positions per game. Engine self-play at depth 9 gives us clean, accurate evaluations across all types of positions — openings, middlegames, and endgames.
+
+### v7: dataset quality and loading speed
+
+For **v7**, training was refocused on **dataset choice and cleanliness** (quiet, gensfen-style self-play labels at depth 9, multipv-diff filtering) to improve **validation accuracy**, rather than claiming gains from “deployment” alone. **Throughput** during training uses the **C++ binpack / `SparseBatchDataset`** path so the GPU is fed quickly—Python-only dataloaders would bottleneck long before the network is the limit.
 
 ---
 
@@ -414,6 +420,30 @@ On startup:
 2. Memory-maps the `.nnue` file into addresses aligned for SIMD reads
 3. Sets up the accumulator arrays for efficient incremental updates
 
+### What the main C++ sources do (map of `engine/src/`)
+
+Stockfish splits responsibilities across many translation units. These are the pieces you’ll touch or read most often:
+
+| File(s) | Role |
+|--------|------|
+| **`main.cpp`** | Program entry: prints engine banner, initializes bitboards and `Position` static tables, constructs `UCIEngine`, runs the **UCI command loop** until `quit`. |
+| **`uci.cpp` / `uci.h`** | Parses stdin (`uci`, `setoption`, `position`, `go`, `stop`, `quit`, …), drives the `Engine` object, formats `info` / `bestmove` lines to stdout. This is the **text protocol front-end**. |
+| **`engine.cpp` / `engine.h`** | Owns the **shared chess state**: `Position`, thread pool, UCI **options** (`Hash`, `Threads`, `EvalFile`, …), NNUE **network handles**, and hooks that connect search iterations to UCI output. |
+| **`search.cpp` / `search.h`** | **Core alpha-beta search**: PVS, iterative deepening, aspiration windows, LMR, null move, razoring, pruning, quiescence, etc. Calls into evaluation at leaves. |
+| **`evaluate.cpp` / `evaluate.h`** | Glue between search and NNUE: invokes the neural eval, combines with classical terms if any, returns a score in engine units. |
+| **`movegen.cpp` / `movegen.h`** | **Legal move generation** (quiet, captures, evasions, checks) used everywhere search expands a node. |
+| **`movepick.cpp` / `movepick.h`** | **Move ordering** for search: hash move, captures (MVV-LVA), killers, history, etc.—critical for alpha-beta efficiency. |
+| **`position.cpp` / `position.h`** | **Board representation**: piece placement, side to move, castling, en passant, Zobrist keys; `do_move` / `undo_move` for the search stack. |
+| **`bitboard.cpp` / `bitboard.h`** | Bitboards, attacks, magics—low-level **geometry** of chess on 64 bits. |
+| **`tt.cpp` / `tt.h`** | **Transposition table**: store/load bounds, best move, depth—shared across threads (with hashing). |
+| **`timeman.cpp` / `timeman.h`** | **Time management** for `go movetime` / `wtime` style controls. |
+| **`benchmark.cpp`** | Built-in speed tests (`bench`) for regression and NPS measurement. |
+| **`nnue/network.cpp` + `nnue/*.h`** | Loads the **`.nnue` blob**, builds runtime structures, runs inference (`propagate` / accumulator updates). Feature geometry (e.g. HalfKP / HalfKAv2) lives under `nnue/features/`. |
+| **`nnue/nnue_accumulator.*`** | **Incremental NNUE state** so moving a piece updates only affected features instead of full recomputation. |
+| **`syzygy/tbprobe.*`** | **Syzygy tablebase probing** (optional; needs files on disk). |
+
+Together: **`main` → `UCI` → `Engine` → `Search` ↔ `Position` / `MoveGen` / `MovePicker`**, with **`Evaluate` → NNUE `Network`** at the leaves.
+
 ---
 
 ## 8. Phase 7 — Search Algorithm — How the Engine Thinks
@@ -542,127 +572,56 @@ Once the engine has a good estimate of the score from the previous iteration, it
 
 ---
 
-## 9. Phase 8 — Cloud Deployment (HF Spaces + Vercel)
+## 9. Phase 8 — Backend, API & deployment
 
-### Backend: Hugging Face Spaces (Docker)
+### Docker image (Hugging Face Spaces)
 
-The `Dockerfile` defines the full backend build:
+The repo root **`Dockerfile`** (not an ad-hoc clone recipe) does roughly:
 
-```dockerfile
-FROM python:3.12-slim
+1. **`COPY . .`** — full project into `/app`.
+2. **Build the C++ engine** from **`/app/engine/src`** (or `/app/src` on a minimal HF layout): `make build`, then copy the `stockfish` binary to **`/app/engine_bin/deepcastle`**.
+3. **Optional NNUE files** — copies `output.nnue` / `small_output.nnue` into `engine_bin` when present in the repo.
+4. **Python** — `pip install` from `server/requirements.txt`.
+5. **Launch** — runs **`launcher.py`** (a copy of `server/main.py`) on port **7860**.
 
-# 1. Install build tools
-RUN apt-get install -y git make g++ curl
+So the container always contains **your** tree: the same `engine/src` you develop against, plus the weights you ship.
 
-# 2. Clone Stockfish source + patch as DeepCastle
-WORKDIR /app
-RUN git clone https://github.com/official-stockfish/Stockfish.git
-WORKDIR /app/Stockfish/src
-RUN make -j$(nproc) build ARCH=x86-64-sse41-popcnt EXE=deepcastle
+### FastAPI bridge (`server/main.py`) — how it really works
 
-# 3. Copy custom NNUE brain to engine directory
-COPY engine/output.nnue /app/engine/
+The server is **not** “spawn a new engine on every HTTP request” (that would waste RAM and risk orphaned processes). Instead:
 
-# 4. Download fallback standard NNUE files (prevent crash during cold start)
-RUN wget https://tests.stockfishchess.org/api/nn/nn-XXXXXX.nnue -O /app/engine/
+1. **Singleton UCI process** — `chess.engine.popen_uci` starts **one** `deepcastle` subprocess; a global holds the handle.
+2. **Spawn lock** — concurrent first requests can’t create two engines; only one survives.
+3. **I/O lock** — all `play` / `analyse` calls are **serialized** on that process. UCI expects one search at a time; overlapping `go` commands corrupt the protocol.
+4. **Options** — `EvalFile` points at **`output.nnue`** (and optionally a small net). `Hash` defaults via **`ENGINE_HASH_MB`** for small VMs.
+5. **Timeouts** — `asyncio.wait_for` bounds wall time per search; on timeout the server tries to **quit** that engine and clear the singleton so the next request gets a fresh process.
+6. **Shutdown** — FastAPI **lifespan** runs on exit: **quit** the engine subprocess so deploys don’t leak processes.
 
-# 5. Copy FastAPI server
-COPY server/main.py /app/
+Endpoints you care about:
 
-# 6. Install Python dependencies
-RUN pip install fastapi uvicorn python-chess
+| Route | Purpose |
+|--------|---------|
+| `POST /move` | Best move + score + depth + nodes + **nps** + PV for a FEN |
+| `POST /analyze-game` | Full game review (many `analyse` calls in a loop) |
+| `GET /health` | Binary exists |
+| `GET /health/ready` | Engine answers UCI `ping` |
 
-# 7. Start the API server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
-```
+The **python-chess** layer translates JSON → `position` + `go` → parses `info` / `bestmove`.
 
-### FastAPI `/move` Endpoint — Step by Step
+### Frontend (Vercel)
 
-URL: `POST https://amogh1221-deepcastle-api.hf.space/move`
+Next.js app under `web/`: board (`react-chessboard`), rules (`chess.js`), pages for play / analysis / review. It **`fetch`es** the HF URL from **`NEXT_PUBLIC_ENGINE_API_URL`**. NPS shown in the UI is whatever the engine reported on the **last** `info` line—**expect variation** (often **hundreds of thousands/s** on shared CPUs, not a fixed “5M”).
 
-```python
-@app.post("/move")
-async def get_move(req: MoveRequest):
-    fen = req.fen        # current board position
-    time = req.time      # thinking time in seconds
-
-    # 1. Create a chess engine process
-    engine = chess.engine.SimpleEngine.popen_uci("./engine/deepcastle")
-
-    # 2. Configure it to use our custom NNUE brain
-    engine.configure({"EvalFile": "./engine/output.nnue", "Hash": 64})
-
-    # 3. Set up the board from the FEN
-    board = chess.Board(fen)
-
-    # 4. Ask the engine for its best move + analysis
-    result = engine.analyse(board, chess.engine.Limit(time=time))
-    best_move = result["pv"][0]
-
-    # 5. Extract stats from the UCI `info` output
-    score = result["score"].white().score(mate_score=10000)
-    depth = result["depth"]
-    nodes = result["nodes"]
-    nps   = result["nps"]
-    pv    = [m.uci() for m in result["pv"][:5]]
-
-    engine.quit()
-
-    # 6. Return JSON to the frontend
-    return {
-        "bestmove": best_move.uci(),
-        "score": score / 100.0,      # centipawns → pawns
-        "depth": depth,
-        "nodes": nodes,
-        "nps": nps,
-        "pv": " ".join(pv)
-    }
-```
-
-### Frontend: Vercel (Next.js 16)
-
-The React frontend (`web/src/app/page.tsx`) handles the full user-facing chess experience:
-
-| Feature | Implementation |
-|---|---|
-| Interactive chessboard | `react-chessboard` v5 |
-| Chess rule validation | `chess.js` v1.4 |
-| Click-to-move | `onSquareClick` → highlights legal moves |
-| Drag-to-move | `onPieceDrop` → validates and submits |
-| Engine API call | `fetch(API_URL/move, {fen, time})` |
-| Eval bar | Animated SVG bar (Win% = 50 + score × 7) |
-| Move history | White/Black paired grid (Chess.com style) |
-| Search stats | Depth, Nodes, NPS, Score, PV line |
-| Game state | Check, checkmate, draw detection |
-
-### Full Request Lifecycle (One Move)
+### Request lifecycle (one bot move)
 
 ```
-User drags e2→e4 on the board
-        ↓
-chess.js: is this a legal move? YES
-        ↓
-React state: board updates → e4 displayed
-        ↓
-setTimeout(150ms) → fetch POST /move
-    Body: { "fen": "rnbqkbnr/pppppppp/8/4P3/8/PPPP1PPP/RNBQKBNR b...", "time": 1.0 }
-        ↓
-HF Space Docker container:
-    → FastAPI receives request
-    → Spawns deepcastle binary via popen
-    → Sends UCI commands: setoption EvalFile, position fen ..., go movetime 1000
-    → DeepCastle engine thinks for 1.0 second
-        → Iterative deepening PVS
-        → NNUE evaluates ~500K positions per second
-        → Returns best move: "e7e5"
-    → FastAPI parses UCI output, extracts score/depth/pv
-    → Returns JSON: { bestmove: "e7e5", score: 0.15, depth: 18, ... }
-        ↓
-Frontend:
-    → Plays e7e5 on board
-    → Animates eval bar to 50 + 0.15 × 7 = 51.05 (slight White advantage)
-    → Updates move log with "1. e4 e5"
-    → Displays "Depth: 18 | Nodes: 512K | NPS: 512K"
+Browser → POST /move { fen, time }
+    → FastAPI acquires I/O lock
+    → UCI: setoption EvalFile, position fen …, go movetime …
+    → DeepCastle searches (PVS + NNUE eval at leaves)
+    → bestmove + info (depth, nodes, nps, …)
+    → JSON response
+    → UI updates board + stats
 ```
 
 ---
@@ -719,48 +678,48 @@ Frontend:
 ║  FastAPI :7860          ║      ║  Real-time eval bar       ║
 ║                         ║←────║  POST /move (FEN)         ║
 ║  Search:                ║────→║  Receives bestmove+stats   ║
-║  PVS + LMR + NNUE eval  ║      ║                           ║
+║  PVS + LMR + NNUE eval  ║      ║  (NPS varies; ~400k–600k    ║
+║                         ║      ║   typical on small VMs)     ║
 ╚═════════════════════════╝      ╚═══════════════════════════╝
 ```
 
 ---
 
-## 11. Performance Benchmarks
+## 11. Performance & benchmarks
 
-### vs Stockfish 18 (22 games, 1 second per move)
+### Casual match vs Stockfish 18 (illustrative)
 
-| Metric | Result |
-|---|---|
-| Score | **0 Wins / 1 Loss / 21 Draws** |
-| Draw Ratio | **95.5%** |
-| Estimated Elo | **~3,604** |
-| Elo difference vs SF18 | **−15.8 ± 30.3** |
-| LOS (probability of being stronger) | 15.9% |
+A **short** run at fast controls is useful as a **smoke test**, not a definitive rating:
 
-> The single loss was a forced White checkmate combination in a rare theoretical line. All other 21 games ended in technical draws — three-fold repetition, insufficient material, or stalemate arising from precise defensive play.
+| Metric | Example result |
+|--------|----------------|
+| Scoreline | 0W / 1L / 21D (22 games) |
+| Draw rate | very high |
 
-### Elo Calculation (SPRT Method)
+SPRT-derived **Elo** numbers from such a sample are **uncertain** (large error bars). Quote them as **rough**—not “this engine is exactly X Elo.”
 
-Based on match results against Stockfish 18 (≈3640 Elo):
+### Nodes per second (NPS)
 
-```
-Elo difference  = -15.8 ± 30.3
-DeepCastle Elo  = 3640 - 15.8 ≈ 3,624   (upper bound: ~3,654)
-```
+What you see in the UI (often **~400k–600k NPS** on typical cloud CPUs at short think times) depends on:
 
-The SPRT (Sequential Probability Ratio Test) result places DeepCastle statistically within **one sigma** of Stockfish 18 — confirming **top-engine territory** performance.
+- **CPU** model and thermal limits  
+- **Time per move** and **depth** reached  
+- **TT size** (`Hash`) and **thread count**  
+- **Position** complexity  
 
-### Engine Statistics (Per Move, 1s time control)
+So **do not** compare a single NPS readout to marketing “millions of nodes/s” unless you measured on the same hardware and settings.
 
-| Metric | Typical Value |
-|---|---|
-| Positions evaluated | ~500,000 – 2,000,000 |
-| Nodes per second (NPS) | ~500K – 2M |
-| Search depth reached | 15 – 22 plies |
-| NNUE evaluation time | ~50 nanoseconds |
-| TT utilization | ~40% |
+### Other per-move stats
+
+| Metric | Order of magnitude |
+|--------|---------------------|
+| Nodes searched | depends on time limit; can be millions per second **total** nodes over the whole search |
+| Depth | varies with time control |
+| NNUE eval | designed to be cheap per leaf; **throughput** is what shows up as NPS |
 
 ---
 
-*Document generated from actual codebase analysis: `training/deepcastle_v7.py`, `engine/src/`, `server/main.py`, `Dockerfile`, `web/src/app/page.tsx`*  
-*Training dataset credit: [official-stockfish/nnue-pytorch wiki](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets)*
+*v7 training emphasizes an **improved dataset** (Stockfish gensfen-style binpacks, quiet positions) and **C++ binpack / SparseBatchDataset** loading for training throughput. Deployment uses **FastAPI + one UCI process** as described in §9.*
+
+*Training dataset family: [official-stockfish/nnue-pytorch wiki](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets)*  
+*Code references: `training/deepcastle_v7.py`, `engine/src/`, `server/main.py`, `Dockerfile`, `web/src/app/`*
