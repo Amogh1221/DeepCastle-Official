@@ -1,25 +1,10 @@
-# 🏰 Deepcastle v7 — Architecture & mechanism
-
-> End-to-end walkthrough: datasets → HalfKP → training → `.nnue` → C++ search → FastAPI → browser.  
-> **Beginner-friendly.** Strength numbers here are **illustrative** unless you run your own long matches.
-
-**Important:** The **backend** runs **your** DeepCastle binary with **`output.nnue`**, not vanilla Stockfish’s default brain. NPS figures in the **~400k–600k** range on typical cloud CPUs are normal at short controls; they are **not** “~5M NPS” marketing numbers.
+**Important:** The **backend** runs **your** DeepCastle binary with **`output.nnue`** (and optionally **`small_output.nnue`** for lightweight devices), not vanilla Stockfish’s default brain. NPS figures in the **~400k–600k** range on typical cloud CPUs are normal; they are **not** “~5M NPS” marketing numbers.
 
 ---
 
 ## Table of Contents
 
-1. [What Even Is NNUE? (The Big Picture)](#1-what-even-is-nnue-the-big-picture)
-2. [Phase 1 — Collecting Training Data](#2-phase-1--collecting-training-data)
-3. [Phase 2 — Encoding Chess Positions (HalfKP Features)](#3-phase-2--encoding-chess-positions-halfkp-features)
-4. [Phase 3 — Designing the Neural Network](#4-phase-3--designing-the-neural-network)
-5. [Phase 4 — Training the Network](#5-phase-4--training-the-network)
-6. [Phase 5 — Exporting to the .nnue Binary](#6-phase-5--exporting-to-the-nnue-binary)
-7. [Phase 6 — C++ Engine Compilation](#7-phase-6--c-engine-compilation)
-8. [Phase 7 — Search Algorithm — How the Engine Thinks](#8-phase-7--search-algorithm--how-the-engine-thinks)
-9. [Phase 8 — Backend, API & deployment](#9-phase-8--backend-api--deployment)
 10. [Full System Diagram](#10-full-system-diagram)
-11. [Performance Benchmarks](#11-performance-benchmarks)
 
 ---
 
@@ -45,7 +30,7 @@ Stockfish ships with its own NNUE brain (the standard `nn-*.nnue` files), traine
 ```
   ┌──────────────────────────────────────────────────────────────────────────┐
   │  STEP 1: Generate training data (millions of chess positions + scores)   │
-  │  STEP 2: Encode each position as a sparse HalfKP feature vector          │
+  │  STEP 2: Encode each position as a sparse HalfKAv2 feature vector        │
   │  STEP 3: Train a neural network to predict scores from features           │
   │  STEP 4: Quantize weights (float32 → int16/int8) + export to .nnue       │
   │  STEP 5: Compile a C++ engine that can load + run the .nnue file          │
@@ -101,26 +86,27 @@ For **v7**, training was refocused on **dataset choice and cleanliness** (quiet,
 
 ---
 
-## 3. Phase 2 — Encoding Chess Positions (HalfKP Features)
+## 3. Phase 2 — Encoding Chess Positions (HalfKAv2 Features)
 
 ### The problem: how do you feed a chessboard into a neural network?
 
 A neural network expects a **vector of numbers** as input — but a chessboard is a complex game state. We need to encode it faithfully using numbers.
 
-The encoding method used is called **HalfKP**.
+The encoding method used is called **HalfKAv2**.
 
-### Understanding HalfKP
+### Understanding HalfKAv2
 
-The core idea: for *each side separately* (White's perspective AND Black's perspective), encode every non-king piece on the board relative to where **your own king** is.
+Modern NNUEs (like Stockfish 16+) use **HalfKAv2** instead of the older HalfKP. 
 
-**Formally:** Each feature is a combination of:
-- **King Square** — where is YOUR king? (one of 64 squares)
-- **Piece Type** — what piece are we encoding? (5 types: Pawn, Knight, Bishop, Rook, Queen — no kings)
-- **Piece Square** — where is that piece on the board? (64 squares)
+**HalfKAv2** encodes every piece's position relative to its own king, but includes additional board-wide context and perspective-specific optimizations.
+
+**The Geometry:**
+- **Inputs:** 24,576 features per side.
+- **Side-to-move awareness:** The network processes the board differently depending on whose turn it is, allowing for much sharper positional understanding.
 
 So the total feature count is:
 ```
-64 (king squares) × 5 (piece types) × 64 (piece squares) = 20,480 features per side
+24,576 features per side
 ```
 
 Both sides are computed independently (White's features + Black's features), giving the network **two 20,480-dimensional vectors**.
@@ -149,14 +135,14 @@ Here is the full network architecture — we'll explain each piece:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  INPUT: HalfKP features (20,480 per side — sparse)           │
+│  INPUT: HalfKAv2 features (24,576 per side — sparse)         │
 │         White's perspective  +  Black's perspective          │
 └────────────────────────────┬─────────────────────────────────┘
                              │ Embedding lookup (sparse sum)
                              ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  FEATURE TRANSFORMER                                         │
-│  Embedding layer: 20,480+1 → 256 neurons + 8 PSQT buckets  │
+│  Embedding layer: 24,576 → neurons + buckets                  │
 │  (one large embedding matrix learned during training)        │
 └────────────────────────────┬─────────────────────────────────┘
                              │ White acc + Black acc → concat 512
@@ -189,9 +175,9 @@ Here is the full network architecture — we'll explain each piece:
 
 | Parameter | Value | Why |
 |---|---|---|
-| HalfKP features | 20,480 per side | Full king-relative piece encoding |
+| HalfKAv2 features | 24,576 per side | Modern king-relative piece encoding |
 | L1 (Feature Transformer) | 256 neurons | Large enough to represent rich positional features |
-| L2 | 31 neurons | Smaller, efficient "summary" layer |
+| L2 | 15–31 neurons | Smaller, efficient "summary" layer |
 | L3 | 32 neurons | Final dense layer before output |
 | Layer stacks (buckets) | 8 | One sub-network per game phase |
 | PSQT buckets | 8 | Per-phase piece-square bonuses |
@@ -240,13 +226,31 @@ Think of it as a "quick answer" path: even before the full neural network runs, 
 ### Setup
 
 ```
-Optimizer  : Ranger21 (if available) → falls back to AdamW
-Learning Rate : 8.75e-4
-Epoch size : 25,000,000 positions
-Batch size : 16,384 positions
-Epochs     : up to 400 (with early stopping, patience=20)
-Hardware   : CUDA GPU (bfloat16 mixed precision)
+Optimizer  : Ranger21 (AdamW base)
+Learning Rate : 1.0 (with Ranger21 internal scheduler)
+Batch size : 8192 – 16,384 positions
+Mixed Precision : CUDA bfloat16 (RTX 3060 / 4050)
 ```
+
+### v7 Model Selection
+
+DeepCastle v7 features two specialized nets to balance speed and tactical depth:
+
+#### 1. The Main Net (`output.nnue`)
+The "heavy lifter" designed for high-accuracy analysis.
+- **Layers**: L1 (256) → L2 (31) → L3 (32)
+- **Epochs**: 400
+- **Epoch Size**: 25,000,000 positions
+- **Total Parameters**: ~6.8M
+- **Trained on**: NVIDIA RTX 3060
+
+#### 2. The Small Net (`small_output.nnue`)
+A lightweight version optimized for fast tactical hints and mobile CPU performance.
+- **Layers**: L1 (128) → L2 (15) → L3 (32)
+- **Epochs**: 75
+- **Epoch Size**: 20,000,000 positions
+- **Total Parameters**: ~3.5M
+- **Trained on**: NVIDIA RTX 4050 Laptop GPU
 
 ### What is the Ranger21 Optimizer?
 
@@ -341,7 +345,7 @@ This script:
 1. Loads the best checkpoint (`deepcastle7_best.pt` — the epoch with best validation loss)
 2. Quantizes float32 weights to **int16** (feature transformer) and **int8** (output layers) using per-layer scale factors
 3. Serializes the quantized weights in the exact binary layout the Stockfish NNUE loader expects
-4. Outputs: `engine/output.nnue` (**6.2 MB**)
+4. Outputs: `engine/output.nnue` and `engine/small_output.nnue`
 
 ### What is Quantization?
 
@@ -635,10 +639,10 @@ Browser → POST /move { fen, time }
 ║  large_gensfen_multipvdiff_100_d9.binpack                                   ║
 ║  (100M+ positions × depth-9 Stockfish scores)                               ║
 ║       ↓                                                                      ║
-║  C++ SparseBatchDataset  →  HalfKP feature vectors (sparse 20,480-dim)      ║
+║  C++ SparseBatchDataset  →  HalfKAv2 feature vectors (sparse 24,576-dim)    ║
 ║       ↓                                                                      ║
 ║  DeepCastle7 forward pass:                                                  ║
-║    Embedding lookup → SqrCReLU product pooling → 8 LayerStack buckets       ║
+║    Embedding lookup → SqrCReLU product pooling                              ║
 ║    + PSQT shortcut                                                           ║
 ║       ↓                                                                      ║
 ║  nnue_loss (symmetric sigmoid power-law)                                    ║
@@ -649,7 +653,7 @@ Browser → POST /move { fen, time }
 ║       ↓                                                                      ║
 ║  export_nnue.py: float32 → int16/int8 quantization                         ║
 ║       ↓                                                                      ║
-║  engine/output.nnue  (6.2MB binary brain)                                   ║
+║  engine/output.nnue & small_output.nnue                      ║
 ╚══════════════════════════════╦═══════════════════════════════════════════════╝
                                ║
 ╔══════════════════════════════╩═══════════════════════════════════════════════╗
@@ -674,7 +678,7 @@ Browser → POST /move { fen, time }
 ║  HF Spaces Docker       ║      ║  Vercel (Next.js 16)      ║
 ║                         ║      ║                           ║
 ║  deepcastle (ELF)       ║      ║  react-chessboard v5      ║
-║  output.nnue (brain)    ║      ║  chess.js validation      ║
+║  output.nnue & small_output.nnue ║  chess.js validation      ║
 ║  FastAPI :7860          ║      ║  Real-time eval bar       ║
 ║                         ║←────║  POST /move (FEN)         ║
 ║  Search:                ║────→║  Receives bestmove+stats   ║
@@ -685,41 +689,7 @@ Browser → POST /move { fen, time }
 
 ---
 
-## 11. Performance & benchmarks
-
-### Casual match vs Stockfish 18 (illustrative)
-
-A **short** run at fast controls is useful as a **smoke test**, not a definitive rating:
-
-| Metric | Example result |
-|--------|----------------|
-| Scoreline | 0W / 1L / 21D (22 games) |
-| Draw rate | very high |
-
-SPRT-derived **Elo** numbers from such a sample are **uncertain** (large error bars). Quote them as **rough**—not “this engine is exactly X Elo.”
-
-### Nodes per second (NPS)
-
-What you see in the UI (often **~400k–600k NPS** on typical cloud CPUs at short think times) depends on:
-
-- **CPU** model and thermal limits  
-- **Time per move** and **depth** reached  
-- **TT size** (`Hash`) and **thread count**  
-- **Position** complexity  
-
-So **do not** compare a single NPS readout to marketing “millions of nodes/s” unless you measured on the same hardware and settings.
-
-### Other per-move stats
-
-| Metric | Order of magnitude |
-|--------|---------------------|
-| Nodes searched | depends on time limit; can be millions per second **total** nodes over the whole search |
-| Depth | varies with time control |
-| NNUE eval | designed to be cheap per leaf; **throughput** is what shows up as NPS |
-
----
-
-*v7 training emphasizes an **improved dataset** (Stockfish gensfen-style binpacks, quiet positions) and **C++ binpack / SparseBatchDataset** loading for training throughput. Deployment uses **FastAPI + one UCI process** as described in §9.*
+*v7 training emphasizes an **improved dataset** (Stockfish gensfen-style binpacks, quiet positions) and **C++ binpack / SparseBatchDataset** loading for training throughput.*
 
 *Training dataset family: [official-stockfish/nnue-pytorch wiki](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets)*  
 *Code references: `training/deepcastle_v7.py`, `engine/src/`, `server/main.py`, `Dockerfile`, `web/src/app/`*

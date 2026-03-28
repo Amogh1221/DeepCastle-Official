@@ -43,16 +43,16 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     },
     {
       icon: <Zap className="w-6 h-6" />,
-      label: "Speed",
-      value: "~400–600k NPS",
-      sub: "Typical in the web UI; varies by CPU & position",
+      label: "Model Size",
+      value: "~6.8M Parameters",
+      sub: "Optimized for AVX2 & SSE4.1 CPUs",
       color: "from-yellow-500 to-amber-600",
     },
     {
       icon: <Shield className="w-6 h-6" />,
       label: "Evaluation",
-      value: "HalfKP",
-      sub: "20,480-dim feature set",
+      value: "HalfKAv2_hm^",
+      sub: "24,576-dim feature set",
       color: "from-rose-500 to-red-600",
     },
   ];
@@ -132,7 +132,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           </h1>
           <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed mb-8 sm:mb-10 px-2 sm:px-0">
             A custom-built NNUE chess engine — trained on 100M+ Stockfish self-play positions at depth 9,
-            powered by alpha-beta search and a HalfKP neural network.
+            powered by alpha-beta search and a HalfKAv2 neural network.
           </p>
 
           <div className="flex flex-wrap gap-3 justify-center">
