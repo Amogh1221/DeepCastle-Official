@@ -243,46 +243,71 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
   // ── Engine Fetch (for bot's actual move) ──
   const fetchMove = useCallback(async (currentFen: string) => {
-    setThinking(true); setIsPlayerTurn(false); setBotMessage("Analyzing potential lines...");
+    setThinking(true); 
+    setIsPlayerTurn(false); 
+    setBotMessage("Analyzing potential lines...");
+    
     // Stop background analysis while bot is thinking
-    if (analysisAbortRef.current) { analysisAbortRef.current.abort(); analysisAbortRef.current = null; }
+    if (analysisAbortRef.current) { 
+      analysisAbortRef.current.abort(); 
+      analysisAbortRef.current = null; 
+    }
+
     try {
       const response = await fetch(`${API_URL}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fen: currentFen, time: settings.thinkTime }),
       });
+
       if (!response.ok) throw new Error(`Engine API error`);
       const data = await response.json();
       setEngineError(null);
+
       if (data.bestmove) {
         const g = new Chess(currentFen);
         let mv = g.move(data.bestmove);
         if (!mv) mv = g.move({ from: data.bestmove.slice(0, 2), to: data.bestmove.slice(2, 4), promotion: "q" });
+        
         if (mv) {
-          gameRef.current = g; setFen(g.fen());
+          gameRef.current = g; 
+          setFen(g.fen());
           setMoveHistory(prev => [...prev, { san: mv!.san, score: String(data.score?.toFixed(2) ?? "?") }]);
-          // Update bot move stats (separate from eval bar stats)
           setBotStats({
             score: data.score ?? 0, depth: data.depth ?? 0, nodes: data.nodes ?? 0, nps: data.nps ?? 0,
             pv: data.pv ?? "", mateIn: data.mate_in ?? null
           });
-          // Also sync eval bar score
           setStats(prev => ({ ...prev, score: data.score ?? prev.score, mateIn: data.mate_in ?? null }));
 
-          // Apply increment for bot
           if (hasTimer) {
             setBlackTime(t => t + settings.matchSettings.increment);
           }
 
           setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
+          
+          // Sucessful move: enable player turn
+          setThinking(false);
+          setIsPlayerTurn(true);
+          return;
         }
       }
+      
+      // Fallback if no turn-ending move was processed
+      setThinking(false);
+      setIsPlayerTurn(true);
+
     } catch (err: any) {
-      setEngineError("Engine Offline");
-    } finally {
-      setThinking(false); setIsPlayerTurn(true);
+      setEngineError("Engine Offline. DeepCastle will move as soon as possible...");
+      setBotMessage("Engine is currently offline. DeepCastle is waiting to reconnect...");
+      
+      // Auto-retry after 5 seconds if the engine is down
+      setTimeout(() => {
+        // Only retry if it's still the bot's turn at the same position and game is still active
+        if (gameRef.current.fen() === currentFen && !gameEnded) {
+          fetchMove(currentFen);
+        }
+      }, 5000);
     }
   }, [settings.thinkTime, playerColor, settings.matchSettings.increment]);
 
