@@ -338,14 +338,14 @@ export function ReviewPage({
       )}
 
       {!loading && !error && (
-        <div className="flex-1 flex flex-col min-h-0 w-full max-w-[1680px] mx-auto px-2 sm:px-4 pb-3 pt-2 overflow-hidden">
-          <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 flex-1 min-h-0 xl:overflow-hidden xl:items-stretch">
+        <div className="flex-1 flex flex-col min-h-0 w-full max-w-none px-2 sm:px-3 lg:pl-3 lg:pr-2 pb-3 pt-2 overflow-hidden">
+          <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
-          {/* Col 1: Board + graph + mobile nav — larger share of width */}
-          <div className="flex flex-col gap-3 w-full xl:flex-[1.4] xl:min-w-0 xl:max-w-[min(92vw,680px)] xl:basis-0 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
+          {/* Col 1: Board + graph — grows to fill space left of middle + history */}
+          <div className="flex flex-col gap-3 w-full min-w-0 xl:flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
 
-            {/* Board row — max size leaves room for eval chart inside viewport */}
-            <div className="flex gap-2 sm:gap-3 min-h-0 shrink-0 xl:max-h-[min(100%,calc(100dvh-270px))]">
+            {/* Board row — height cap leaves room for eval chart (label + graph) in viewport */}
+            <div className="flex gap-2 sm:gap-3 min-h-0 shrink-0 xl:max-h-[min(100%,calc(100dvh-300px))]">
               {/* Eval bar */}
               <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[120px]">
                 <div
@@ -360,7 +360,7 @@ export function ReviewPage({
 
               {/* Board */}
               <div className="flex-1 relative bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible min-w-0 min-h-0 flex items-center justify-center">
-                <div className="aspect-square w-full max-w-[min(100%,calc(100dvh-270px))] relative">
+                <div className="aspect-square w-full max-w-[min(100%,calc(100dvh-300px))] relative">
                   <Chessboard
                     options={{
                       position: displayFen,
@@ -470,8 +470,8 @@ export function ReviewPage({
             </div>
           </div>
 
-          {/* Col 2: Game review / analysis + desktop nav — narrower than board */}
-          <div className="flex flex-col gap-3 w-full xl:flex-[0.55] xl:min-w-[220px] xl:max-w-[380px] xl:basis-0 min-w-0 min-h-0 xl:overflow-hidden">
+          {/* Col 2: Game review / analysis + desktop nav — fixed max width, hugged toward the right with col3 */}
+          <div className="flex flex-col gap-3 w-full xl:w-[min(380px,28vw)] xl:max-w-[380px] xl:flex-none xl:shrink-0 min-w-0 min-h-0 xl:overflow-hidden">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -662,7 +662,7 @@ export function ReviewPage({
           </div>
 
           {/* Col 3: Move history — sole scroll region on desktop */}
-          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch w-full xl:w-[320px] 2xl:w-[360px] xl:min-w-[300px] xl:shrink-0 rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
+          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch w-full xl:w-[min(360px,22vw)] xl:min-w-[300px] xl:max-w-[380px] xl:flex-none xl:shrink-0 rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
             <div className="px-2.5 sm:px-3 py-2.5 border-b border-white/5 shrink-0 bg-black/25">
               <span className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Move history</span>
             </div>
