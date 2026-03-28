@@ -127,6 +127,9 @@ def health():
 # Global engine instances to save memory and improve performance
 _GLOBAL_DEEPCASTLE_ENGINE = None
 _ENGINE_LOCK = asyncio.Lock()
+# UCI engines handle one search at a time; concurrent play/analyse on the same process
+# corrupts the protocol and can crash the binary — serialize all I/O.
+_ENGINE_IO_LOCK = asyncio.Lock()
 
 
 def _engine_hash_mb() -> int:
@@ -243,10 +246,11 @@ async def get_move(request: MoveRequest):
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
         # One search: stats must come from this run (not a separate short analyse).
-        result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
-        info = dict(result.info)
-        if not info:
-            info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
+        async with _ENGINE_IO_LOCK:
+            result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+            info = dict(result.info)
+            if not info:
+                info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
@@ -294,10 +298,11 @@ async def get_analysis_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
 
-        result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
-        info = dict(result.info)
-        if not info:
-            info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
+        async with _ENGINE_IO_LOCK:
+            result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+            info = dict(result.info)
+            if not info:
+                info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
 
         score_cp, mate_in = get_normalized_score(info)
 
@@ -487,7 +492,8 @@ async def analyze_game(request: AnalyzeRequest):
         
         analysis_results = []
         
-        infos_before = await engine.analyse(board, limit, multipv=2)
+        async with _ENGINE_IO_LOCK:
+            infos_before = await engine.analyse(board, limit, multipv=2)
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
         
         counts = {
@@ -535,7 +541,8 @@ async def analyze_game(request: AnalyzeRequest):
             move_history.append(move)
             fen_history.append(board.fen())
             
-            infos_after_raw = await engine.analyse(board, limit, multipv=2)
+            async with _ENGINE_IO_LOCK:
+                infos_after_raw = await engine.analyse(board, limit, multipv=2)
             infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
             
             info_after_dict: dict = infos_after[0]

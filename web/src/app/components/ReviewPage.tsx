@@ -359,9 +359,9 @@ export function ReviewPage({
                 />
               </div>
 
-              {/* Board — inset + max size so coords / eval bar stay inside the column */}
-              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
-                <div className="relative aspect-square w-full max-h-full min-h-0 mx-auto shrink max-w-[min(100%,min(calc(100vw-2.5rem),85vmin))] scale-[0.88] origin-center sm:scale-[0.9]">
+              {/* Board: square side = min(container width, height) so 8×8 never overflows (w-full+aspect-square was clipping bottom rank). */}
+              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
+                <div className="relative mx-auto aspect-square w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                   <Chessboard
                     options={{
                       position: displayFen,
