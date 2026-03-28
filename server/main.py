@@ -2,14 +2,13 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
+from contextlib import asynccontextmanager
 import os
 import math
 import chess
 import chess.engine
 import asyncio
 import json
-
-app = FastAPI(title="Deepcastle Engine API")
 
 # ─── Multiplaying / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
@@ -40,34 +39,6 @@ class ConnectionManager:
                         pass
 
 manager = ConnectionManager()
-
-@app.websocket("/ws/{match_id}")
-async def websocket_endpoint(websocket: WebSocket, match_id: str):
-    await manager.connect(websocket, match_id)
-    room = manager.active_connections.get(match_id, [])
-    # Notify others that someone joined
-    await manager.broadcast(json.dumps({"type": "join"}), match_id, exclude=websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            # Relay the message (move, etc.) to others in the same room
-            await manager.broadcast(data, match_id, exclude=websocket)
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, match_id)
-        # Notify remaining players that opponent disconnected → they win
-        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
-    except Exception:
-        manager.disconnect(websocket, match_id)
-        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
-
-
-# Allow ALL for easy testing (we can restrict this later if needed)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Paths relative to the Docker container
 DEEPCASTLE_ENGINE_PATH = os.environ.get(
@@ -113,16 +84,6 @@ class AnalyzeResponse(BaseModel):
     estimated_elo: int
     moves: List[MoveAnalysis]
     counts: Dict[str, int]
-
-@app.get("/")
-def home():
-    return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
-
-@app.get("/health")
-def health():
-    if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
-        return {"status": "error", "message": "Missing engine binary: deepcastle"}
-    return {"status": "ok", "engine": "deepcastle"}
 
 # Global engine instances to save memory and improve performance
 _GLOBAL_DEEPCASTLE_ENGINE = None
@@ -209,6 +170,127 @@ async def get_stockfish_engine():
     # Compatibility alias: analysis now also uses DeepCastle.
     return await get_deepcastle_engine()
 
+
+async def shutdown_engine_async() -> None:
+    """Release UCI subprocess on process exit (deploy / SIGTERM)."""
+    global _GLOBAL_DEEPCASTLE_ENGINE
+    async with _ENGINE_IO_LOCK:
+        async with _ENGINE_LOCK:
+            eng = _GLOBAL_DEEPCASTLE_ENGINE
+            _GLOBAL_DEEPCASTLE_ENGINE = None
+    if eng:
+        try:
+            await asyncio.wait_for(eng.quit(), timeout=5.0)
+        except Exception:
+            pass
+
+
+async def _detach_and_quit_engine(engine) -> None:
+    """After a hung search, drop the singleton and try to terminate the process."""
+    global _GLOBAL_DEEPCASTLE_ENGINE
+    async with _ENGINE_LOCK:
+        if _GLOBAL_DEEPCASTLE_ENGINE is engine:
+            _GLOBAL_DEEPCASTLE_ENGINE = None
+    try:
+        await asyncio.wait_for(engine.quit(), timeout=5.0)
+    except Exception:
+        pass
+
+
+def _search_timeout_sec(request_time: float, depth: Optional[int] = None) -> float:
+    """Wall-clock cap for a single play/analyse (env ENGINE_SEARCH_TIMEOUT_SEC, default 120)."""
+    try:
+        cap = float(os.environ.get("ENGINE_SEARCH_TIMEOUT_SEC", "120"))
+    except ValueError:
+        cap = 120.0
+    cap = max(15.0, min(600.0, cap))
+    if request_time and request_time > 0:
+        return min(cap, max(request_time * 3.0 + 10.0, 30.0))
+    return cap
+
+
+def _analyze_ply_timeout(time_per_move: float) -> float:
+    """Wall-clock cap per analyse() in /analyze-game (multipv=2 needs headroom)."""
+    try:
+        cap = float(os.environ.get("ENGINE_SEARCH_TIMEOUT_SEC", "120"))
+    except ValueError:
+        cap = 120.0
+    cap = max(15.0, min(600.0, cap))
+    if time_per_move and time_per_move > 0:
+        return min(cap, max(time_per_move * 80.0 + 15.0, 30.0))
+    return cap
+
+
+async def _engine_call(engine, coro, timeout_sec: float):
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_sec)
+    except asyncio.TimeoutError:
+        await _detach_and_quit_engine(engine)
+        raise HTTPException(status_code=504, detail="Engine search timed out")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await shutdown_engine_async()
+
+
+app = FastAPI(title="Deepcastle Engine API", lifespan=lifespan)
+
+# Allow ALL for easy testing (we can restrict this later if needed)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.websocket("/ws/{match_id}")
+async def websocket_endpoint(websocket: WebSocket, match_id: str):
+    await manager.connect(websocket, match_id)
+    room = manager.active_connections.get(match_id, [])
+    await manager.broadcast(json.dumps({"type": "join"}), match_id, exclude=websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await manager.broadcast(data, match_id, exclude=websocket)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, match_id)
+        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
+    except Exception:
+        manager.disconnect(websocket, match_id)
+        await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
+
+
+@app.get("/")
+def home():
+    return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
+
+
+@app.get("/health")
+def health():
+    if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
+        return {"status": "error", "message": "Missing engine binary: deepcastle"}
+    return {"status": "ok", "engine": "deepcastle"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    """Optional deep check: binary exists and engine answers UCI (for orchestrators)."""
+    if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
+        raise HTTPException(status_code=503, detail="Missing engine binary")
+    try:
+        engine = await get_deepcastle_engine()
+        async with _ENGINE_IO_LOCK:
+            await asyncio.wait_for(engine.ping(), timeout=5.0)
+        return {"status": "ok", "engine": "responsive"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 def get_normalized_score(info) -> tuple[float, Optional[int]]:
     """Returns the score from White's perspective in centipawns."""
     if "score" not in info:
@@ -246,11 +328,20 @@ async def get_move(request: MoveRequest):
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         
         # One search: stats must come from this run (not a separate short analyse).
+        tsec = _search_timeout_sec(request.time, request.depth)
         async with _ENGINE_IO_LOCK:
-            result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+            result = await _engine_call(
+                engine,
+                engine.play(board, limit, info=chess.engine.INFO_ALL),
+                tsec,
+            )
             info = dict(result.info)
             if not info:
-                info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
+                info = await _engine_call(
+                    engine,
+                    engine.analyse(board, limit, info=chess.engine.INFO_ALL),
+                    tsec,
+                )
         
         # From White's perspective in CP -> converted to Pawns for UI
         score_cp, mate_in = get_normalized_score(info)
@@ -287,6 +378,8 @@ async def get_move(request: MoveRequest):
             mate_in=mate_in,
             opening=opening_name
         )
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -298,11 +391,20 @@ async def get_analysis_move(request: MoveRequest):
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
 
+        tsec = _search_timeout_sec(request.time, request.depth)
         async with _ENGINE_IO_LOCK:
-            result = await engine.play(board, limit, info=chess.engine.INFO_ALL)
+            result = await _engine_call(
+                engine,
+                engine.play(board, limit, info=chess.engine.INFO_ALL),
+                tsec,
+            )
             info = dict(result.info)
             if not info:
-                info = await engine.analyse(board, limit, info=chess.engine.INFO_ALL)
+                info = await _engine_call(
+                    engine,
+                    engine.analyse(board, limit, info=chess.engine.INFO_ALL),
+                    tsec,
+                )
 
         score_cp, mate_in = get_normalized_score(info)
 
@@ -336,6 +438,8 @@ async def get_analysis_move(request: MoveRequest):
             mate_in=mate_in,
             opening=opening_name
         )
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Analysis move error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -492,8 +596,13 @@ async def analyze_game(request: AnalyzeRequest):
         
         analysis_results = []
         
+        ply_timeout = _analyze_ply_timeout(request.time_per_move)
         async with _ENGINE_IO_LOCK:
-            infos_before = await engine.analyse(board, limit, multipv=2)
+            infos_before = await _engine_call(
+                engine,
+                engine.analyse(board, limit, multipv=2),
+                ply_timeout,
+            )
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
         
         counts = {
@@ -542,7 +651,11 @@ async def analyze_game(request: AnalyzeRequest):
             fen_history.append(board.fen())
             
             async with _ENGINE_IO_LOCK:
-                infos_after_raw = await engine.analyse(board, limit, multipv=2)
+                infos_after_raw = await _engine_call(
+                    engine,
+                    engine.analyse(board, limit, multipv=2),
+                    ply_timeout,
+                )
             infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
             
             info_after_dict: dict = infos_after[0]
@@ -620,6 +733,8 @@ async def analyze_game(request: AnalyzeRequest):
             counts=counts
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Analysis Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
