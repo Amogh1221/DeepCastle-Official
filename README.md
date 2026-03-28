@@ -1,6 +1,6 @@
 <div align="center">
   <img src="game/DCLogo.png" alt="Deepcastle Logo" width="150" />
-  <h1>👑 DeepCastle (Official)</h1>
+  <h1> DeepCastle</h1>
 
   <p>A professional-grade, full-stack chess engine ecosystem.</p>
 </div>
@@ -21,29 +21,29 @@ It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) wit
 
  ---
 
-## 🚀 Key Features
+##  Key Features
 
-### 🧠 The Evaluation Core (NNUE)
+###  The Evaluation Core (NNUE)
 *   **Architecture:** Custom **HalfKAv2_hm^** neural network with ~6.6M parameters.
 *   **Multi-Phase Eval:** 8 specialized internal networks (buckets) that automatically switch based on piece count (Opening → Middle → Endgame).
 *   **Product Pooling (SqrCReLU):** Captures high-order multiplicative interactions between White and Black perspectives.
 *   **Quantization:** Fully quantized to `int16`/`int8` for lightning-fast SIMD inference.
 
 
-### 🔍 Search Core
+###  Search Core
 *   **Algorithm:** Alpha-Beta Minimax with Principal Variation Search (PVS).
 *   **Tactical Depth:** Iterative Deepening, Aspiration Windows, and Late Move Reductions (LMR).
 *   **Pruning:** Null Move Pruning, Futility Pruning, and aggressive Quiescence search.
 *   **Speed:** Optimized for ~400k–600k nodes/s (NPS) on cloud-grade CPUs.
 
-### 🌐 Web & API
+###  Web & API
 *   **Frontend:** Stunning Next.js 16 interface with real-time evaluation bar, move analysis, and game history.
 *   **Backend:** High-performance FastAPI UCI bridge with automated memory management and dead-socket cleanup.
 *   **Real-time:** WebSockets for multiplayer and live engine updates.
 
 ---
 
-## 🏗️ System Architecture & Pipeline
+##  System Architecture & Pipeline
 
 ### 1. Training & Export (The Brain)
 The engine's evaluation is powered by a custom-trained NNUE.
@@ -90,7 +90,7 @@ graph TD
 
 ---
 
-## 🛠️ Performance & Memory Management
+##  Performance & Memory Management
 
 Deepcastle v7 is engineered for stability on resource-limited hosts like Hugging Face Spaces:
 - **Background RAM Cleanup:** Automatically clears engine hash tables if memory exceeds 400MB.
@@ -99,32 +99,32 @@ Deepcastle v7 is engineered for stability on resource-limited hosts like Hugging
 
 ---
 
-## 📚 References & Credits
+##  References & Credits
 
 This project stands on the shoulders of giants. Below are the primary sources, repositories, and research that made Deepcastle possible:
 
-### 🔬 Core Engine & Search
+###  Core Engine & Search
 - **[Official Stockfish](https://github.com/official-stockfish/Stockfish):** The legendary GPLv3 search core that powers Deepcastle's thinking.
 - **[Stockfish Documentation](https://stockfishchess.org/blog/):** Invaluable deep-dives into NNUE and search heuristics.
 
-### 🧠 NNUE & Machine Learning
+###  NNUE & Machine Learning
 - **[official-stockfish/nnue-pytorch](https://github.com/official-stockfish/nnue-pytorch):** The foundation for the training stack and architectural designs.
 - **[Stockfish Training Datasets](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets):** Used high-quality depth-9 quiet position datasets for training `v7`.
 - **[Ranger21 Optimizer](https://github.com/lessw2020/Ranger21):** The advanced optimizer used for stable and fast convergence during NNue training.
 
-### 📡 Web & Infrastructure
+###  Web & Infrastructure
 - **[python-chess](https://github.com/niklasf/python-chess):** The incredible Python library that bridges FastAPI to the UCI protocol.
 - **[react-chessboard](https://github.com/Clariity/react-chessboard):** Powers the fluid chessboard UI.
 - **[chess.js](https://github.com/jhlywa/chess.js):** Handles the core chess rules and move validation in the browser.
 - **[Chesskit Analysis](https://github.com/GuillaumeSD/Chesskit):** Inspiration for the game review and move classification logic.
 
-### ☁️ Deployment
+###  Deployment
 - **[Hugging Face Spaces](https://huggingface.co/spaces):** Specifically designed for HF's Docker-based deployment environment.
 - **[Vercel](https://vercel.com/):** High-speed hosting for the Next.js frontend.
 
 ---
 
-## 🔧 Local Development
+##  Local Development
 
 ### 1. Engine Build
 ```bash
@@ -148,9 +148,8 @@ npm run dev
 
 ---
 
-## 🛡️ License
+##  License
 
 Deepcastle is released under the **GPLv3 License**, inheriting the open-source spirit of the Stockfish project.
 
 ---
-*Created with ❤️ by the Deepcastle Team.*
