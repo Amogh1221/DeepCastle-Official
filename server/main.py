@@ -126,10 +126,22 @@ def health():
 
 # Global engine instances to save memory and improve performance
 _GLOBAL_DEEPCASTLE_ENGINE = None
+_ENGINE_LOCK = asyncio.Lock()
+
+
+def _engine_hash_mb() -> int:
+    """Transposition table size in MB; lower = less RAM (env ENGINE_HASH_MB, default 64)."""
+    try:
+        v = int(os.environ.get("ENGINE_HASH_MB", "64"))
+    except ValueError:
+        v = 64
+    return max(8, min(512, v))
+
 
 async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional[dict] = None):
     global _GLOBAL_DEEPCASTLE_ENGINE
 
+    # Fast path: no lock when singleton is already healthy (avoids serializing every /move).
     current_engine = _GLOBAL_DEEPCASTLE_ENGINE
     if current_engine is not None:
         try:
@@ -137,43 +149,57 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
                 return current_engine
         except Exception:
             _GLOBAL_DEEPCASTLE_ENGINE = None
-
-    if not os.path.exists(engine_path):
-        raise HTTPException(status_code=500, detail=f"{role} binary NOT FOUND at {engine_path}")
-
-    try:
-        _, engine = await chess.engine.popen_uci(engine_path)
-
-        if options:
-            await engine.configure(options)
-
-        if os.path.exists(NNUE_PATH):
-            try:
-                await engine.configure({"EvalFile": NNUE_PATH})
-            except Exception as ne:
-                print(f"[ERROR] EvalFile load failed: {str(ne)}")
         else:
-            print(f"[WARNING] EvalFile not found at {NNUE_PATH}")
+            _GLOBAL_DEEPCASTLE_ENGINE = None
 
-        if os.path.exists(NNUE_SMALL_PATH):
+    async with _ENGINE_LOCK:
+        current_engine = _GLOBAL_DEEPCASTLE_ENGINE
+        if current_engine is not None:
             try:
-                await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
-            except Exception as ne:
-                print(f"[ERROR] EvalFileSmall load failed: {str(ne)}")
-        else:
-            print(f"[WARNING] EvalFileSmall not found at {NNUE_SMALL_PATH}")
+                if not current_engine.is_terminated():
+                    return current_engine
+            except Exception:
+                _GLOBAL_DEEPCASTLE_ENGINE = None
+            else:
+                _GLOBAL_DEEPCASTLE_ENGINE = None
 
-        _GLOBAL_DEEPCASTLE_ENGINE = engine
+        if not os.path.exists(engine_path):
+            raise HTTPException(status_code=500, detail=f"{role} binary NOT FOUND at {engine_path}")
 
-        return engine
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
+        try:
+            _, engine = await chess.engine.popen_uci(engine_path)
+
+            if options:
+                await engine.configure(options)
+
+            if os.path.exists(NNUE_PATH):
+                try:
+                    await engine.configure({"EvalFile": NNUE_PATH})
+                except Exception as ne:
+                    print(f"[ERROR] EvalFile load failed: {str(ne)}")
+            else:
+                print(f"[WARNING] EvalFile not found at {NNUE_PATH}")
+
+            if os.path.exists(NNUE_SMALL_PATH):
+                try:
+                    await engine.configure({"EvalFileSmall": NNUE_SMALL_PATH})
+                except Exception as ne:
+                    print(f"[ERROR] EvalFileSmall load failed: {str(ne)}")
+            else:
+                print(f"[WARNING] EvalFileSmall not found at {NNUE_SMALL_PATH}")
+
+            _GLOBAL_DEEPCASTLE_ENGINE = engine
+
+            return engine
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
+
 
 async def get_deepcastle_engine():
     return await _get_or_start_engine(
         DEEPCASTLE_ENGINE_PATH,
         role="deepcastle",
-        options={"Hash": 128, "Threads": 1},
+        options={"Hash": _engine_hash_mb(), "Threads": 1},
     )
 
 async def get_stockfish_engine():
@@ -558,7 +584,6 @@ async def analyze_game(request: AnalyzeRequest):
             analysis_results.append(MoveAnalysis(
                 move_num=i+1,
                 san=san_move,
-                fen=board.fen(),
                 classification=cls,
                 cpl=float(cpl),
                 score_before=float(score_before / 100.0),

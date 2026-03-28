@@ -359,9 +359,9 @@ export function ReviewPage({
                 />
               </div>
 
-              {/* Board — largest square that fits the flex area */}
-              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
-                <div className="relative aspect-square w-full max-h-full max-w-full">
+              {/* Board — slightly inset so edges (coords / shadows) are not clipped */}
+              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
+                <div className="relative aspect-square w-full max-h-full max-w-full max-w-[min(100%,calc(100%-0.5rem))] scale-[0.97] origin-center">
                   <Chessboard
                     options={{
                       position: displayFen,
