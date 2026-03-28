@@ -222,7 +222,7 @@ export function ReviewPage({
   const currentMove = analysis?.moves?.[currentPly - 1] ?? null;
 
   const chartData = analysis
-    ? [{ ply: 0, eval: 0 }, ...analysis.moves.map((m: any) => ({
+    ? [{ ply: 0, eval: 0 }, ... (analysis?.moves || []).map((m: any) => ({
       ply: m.move_num,
       eval: Math.max(-8, Math.min(8, m.score_after ?? 0)),
     }))]
@@ -342,11 +342,11 @@ export function ReviewPage({
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
           {/* Col 1: Board fills column height; evaluation graph pinned to bottom (xl) */}
-          <div className="flex flex-col w-full min-w-0 flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-2 sm:gap-3 min-h-[400px] sm:min-h-[450px]">
+          <div className="flex flex-col w-full min-w-0 flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-1.5 sm:gap-3 min-h-[300px] sm:min-h-[450px]">
 
             {/* Board region — grows so eval sits at bottom with no dead space below */}
             <div className="flex flex-1 min-h-0 flex-col">
-              <div className="flex min-h-0 flex-1 gap-2.5 sm:gap-3 min-w-0 pl-0.5">
+              <div className="flex min-h-0 flex-1 gap-1.5 sm:gap-3 min-w-0 pl-0.5">
               {/* Eval bar — matches board cell height */}
               <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px]">
                 <div
@@ -360,8 +360,8 @@ export function ReviewPage({
               </div>
 
               {/* Board: square side = min(container width, height) so 8×8 never overflows (w-full+aspect-square was clipping bottom rank). */}
-              <div className="relative flex h-full min-h-[300px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
-                <div className="relative mx-auto aspect-square w-full sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
+              <div className="relative flex h-full min-h-[250px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1.5 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
+                <div className="relative mx-auto aspect-square w-[94%] sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                   <Chessboard
                     options={{
                       id: "review-board",
@@ -411,7 +411,7 @@ export function ReviewPage({
             </div>
 
             {/* Eval Graph — pinned to bottom of column */}
-            <div className="flex flex-col h-[7.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
+            <div className="flex flex-col h-[7.25rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
               <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
                 <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
                 {liveEval && (
@@ -507,7 +507,7 @@ export function ReviewPage({
                         style={{ width: `${analysis?.accuracy ?? 0}%` }} />
                     </div>
                   </div>
-                  <div className="border-l border-white/5 px-5 py-3 flex flex-col items-center justify-center shrink-0">
+                  <div className="border-l border-white/5 px-3 py-2 flex flex-col items-center justify-center shrink-0">
                     <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Perf ELO</p>
                     <p className="text-xl font-black text-amber-400">{analysis?.estimated_elo ?? "—"}</p>
                   </div>
