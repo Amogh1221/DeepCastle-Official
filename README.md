@@ -134,3 +134,4 @@ Point the web app at `http://localhost:7860` via `NEXT_PUBLIC_ENGINE_API_URL`.
 - **Training stack:** [official-stockfish/nnue-pytorch](https://github.com/official-stockfish/nnue-pytorch) ecosystem.
 - **Datasets:** [Stockfish NNUE training datasets](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets).
 - **Search core:** [Stockfish](https://github.com/official-stockfish/Stockfish) (GPLv3).
+- **Analysis:** [Chesskit](https://github.com/GuillaumeSD/Chesskit).
