@@ -342,7 +342,7 @@ export function ReviewPage({
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
           {/* Col 1: Board fills column height; evaluation graph pinned to bottom (xl) */}
-          <div className="flex flex-col w-full min-w-0 xl:flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-2 sm:gap-3">
+          <div className="flex flex-col w-full min-w-0 flex-1 xl:max-w-none xl:basis-0 xl:min-h-0 xl:h-full xl:overflow-hidden overflow-y-auto overscroll-contain gap-2 sm:gap-3 min-h-[400px] sm:min-h-[450px]">
 
             {/* Board region — grows so eval sits at bottom with no dead space below */}
             <div className="flex flex-1 min-h-0 flex-col">
