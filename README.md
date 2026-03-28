@@ -1,137 +1,117 @@
-# DEEPCASTLE v7
-![Deepcastle Logo](game/DCLogo.png)
+# 👑 DeepCastle v7 (Official)
 
-> A custom NNUE chess engine and full-stack web app: train your own HalfKP network, run it in a Stockfish-derived search core, and play in the browser.
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch)](https://pytorch.org/)
+[![C++](https://img.shields.io/badge/C%2B%2B-00599C?style=for-the-badge&logo=cplusplus)](https://isocpp.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
 
----
+**Deepcastle v7** is a professional-grade, full-stack chess engine ecosystem. It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) with a powerful **Stockfish-derived search core** and a modern web interface.
 
-## What is DeepCastle?
+> [!TIP]
+> **Play Live:** [deep-castle-official.vercel.app](https://deep-castle-official.vercel.app/)
 
-**Deepcastle v7** pairs a **custom-trained NNUE** (`output.nnue`) with a **Stockfish-derived** alpha-beta search (GPLv3). Positional scores come from **your** exported weights, not Stockfish’s default nets.
+ ---
 
-**Play:** [deepcastle.vercel.app](https://deep-castle-official.vercel.app/) (frontend) talks to the engine API on Hugging Face Spaces.
+## 🚀 Key Features
 
-**Reality checks (avoid hype):**
+### 🧠 The Evaluation Core (NNUE)
+*   **Architecture:** Custom **HalfKAv2** neural network (DeepCastle7 class) with ~500K parameters.
+*   **Multi-Phase Eval:** 8 specialized internal networks (buckets) that automatically switch based on piece count (Opening → Middle → Endgame).
+*   **Product Pooling (SqrCReLU):** Captures high-order multiplicative interactions between White and Black perspectives.
+*   **Quantization:** Fully quantized to `int16`/`int8` for lightning-fast SIMD inference.
 
-- **NPS** in the UI is often on the order of **~400k–600k nodes/s** on typical cloud CPUs at short think times—not millions. Throughput depends on hardware, time limit, and position.
-- **Elo** is **not** a stable LTC title. One small match vs Stockfish 18 produced an SPRT *estimate* around strong-engine territory; treat it as **illustrative**, not a certified rating.
-- The **backend** keeps **one** UCI engine process and **serializes** searches so the protocol stays safe under load (see `server/main.py`).
+### 🔍 Search Core
+*   **Algorithm:** Alpha-Beta Minimax with Principal Variation Search (PVS).
+*   **Tactical Depth:** Iterative Deepening, Aspiration Windows, and Late Move Reductions (LMR).
+*   **Pruning:** Null Move Pruning, Futility Pruning, and aggressive Quiescence search.
+*   **Speed:** Optimized for ~400k–600k nodes/s (NPS) on cloud-grade CPUs.
 
----
-
-## Engine features (summary)
-
-### Search
-Stockfish-style tree search: PVS, iterative deepening, aspiration windows, LMR, null move, futility/delta pruning in qsearch, TT, killers/history, etc. (see `engine/src/search.cpp` and related).
-
-### Evaluation (NNUE)
-- Custom **HalfKP** net exported to `output.nnue`, loaded via UCI `EvalFile`.
-- Architecture and training live under `training/` (PyTorch), aligned with the `nnue-pytorch` ecosystem.
-
-### Performance
-- **Transposition table** size via UCI `Hash` (the API defaults to a modest hash for small hosts—override with `ENGINE_HASH_MB` where you deploy).
-- **Threads:** the hosted API often runs **`Threads` 1**; locally you can raise this for more throughput.
-
-### UCI
-Standard UCI commands; `EvalFile` / optional second net (`EvalFileSmall` if your build supports it) are set from the server or GUI.
-
-**Syzygy tablebases** are supported by the engine **if** you build/run with paths configured—they are **not** required for the web demo.
+### 🌐 Web & API
+*   **Frontend:** Stunning Next.js 16 interface with real-time evaluation bar, move analysis, and game history.
+*   **Backend:** High-performance FastAPI UCI bridge with automated memory management and dead-socket cleanup.
+*   **Real-time:** WebSockets for multiplayer and live engine updates.
 
 ---
 
-## Architecture (3 tiers)
+## 🏗️ System Architecture
 
-```
-┌─────────────────────────────────────────┐
-│  Browser (Vercel / Next.js)             │
-│  react-chessboard, chess.js             │
-└──────────────────┬──────────────────────┘
-                   │  HTTPS POST /move, /analyze-game, …
-                   ▼
-┌─────────────────────────────────────────┐
-│  Hugging Face Spaces (Docker)           │
-│  FastAPI + python-chess UCI bridge      │
-│  One long-lived `deepcastle` process    │
-└──────────────────┬──────────────────────┘
-                   │  stdin/stdout UCI
-                   ▼
-┌─────────────────────────────────────────┐
-│  `deepcastle` ELF + `output.nnue`       │
-│  (built from `engine/src/`)             │
-└─────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[Browser / Next.js] -- "POST /move" --> B[FastAPI / Docker]
+    B -- "UCI stdin/stdout" --> C[Deepcastle Binary]
+    C -- "EvalFile" --> D[output.nnue]
+    C -- "EvalFileSmall" --> E[small_output.nnue]
 ```
 
-### Frontend (`web/`)
-Next.js app: board, modes, review/analysis UI. Calls the public engine URL via `NEXT_PUBLIC_ENGINE_API_URL`.
-
-### Backend (`server/main.py`)
-FastAPI: starts or reuses a **single** engine subprocess, **locks** concurrent UCI I/O, optional **timeouts** and graceful **quit** on shutdown, `/health` and `/health/ready`.
-
-### Engine (`engine/`)
-C++ binary produced from the Stockfish codebase tree in `engine/src/`, plus your `.nnue` file(s). The repo `Dockerfile` builds from `engine/src` (or `/app/src` on minimal HF layouts) and installs the binary to `engine_bin/deepcastle`.
+*   **`web/`**: Next.js App (React 19, Tailwind CSS 4, Framer Motion).
+*   **`server/`**: FastAPI implementation using `python-chess`.
+*   **`engine/`**: C++ Source (Stockfish-derived) and build scripts.
+*   **`training/`**: PyTorch Lightning training pipeline with Ranger21 optimizer.
 
 ---
 
-## Match note (vs Stockfish 18)
+## 🛠️ Performance & Memory Management
 
-A short casual match was run for a **rough** strength signal:
-
-| Metric | Result |
-|--------|--------|
-| Score | 0W – 1L – 21D (22 games) |
-| Draw rate | high |
-
-SPRT-derived **Elo difference** estimates are **uncertain** (wide error bars, short match). Do **not** cite a single number as “the” rating.
+Deepcastle v7 is engineered for stability on resource-limited hosts like Hugging Face Spaces:
+- **Background RAM Cleanup:** Automatically clears engine hash tables if memory exceeds 400MB.
+- **Singleton Engine:** Shared UCI process with locking to prevent concurrent search corruption.
+- **Request Serialization:** Ensures the engine stays synchronized under heavy traffic.
 
 ---
 
-## Training pipeline (short)
+## 📚 References & Credits
 
-| Stage | Notes |
-|-------|--------|
-| Data | e.g. `large_gensfen_multipvdiff_100_d9.binpack` (official NNUE dataset family) — **100M+** quiet positions, depth-9 style labels |
-| Training | `training/deepcastle_v7.py` + `nnue-pytorch`-style tooling; **C++ binpack / SparseBatchDataset** path for fast loading |
-| Export | `export_nnue.py` → quantized `.nnue` |
-| Run | Point the engine at `output.nnue` via `EvalFile` |
+This project stands on the shoulders of giants. Below are the primary sources, repositories, and research that made Deepcastle possible:
 
-Details: **[MECHANISM.md](MECHANISM.md)**.
+### 🔬 Core Engine & Search
+- **[Official Stockfish](https://github.com/official-stockfish/Stockfish):** The legendary GPLv3 search core that powers Deepcastle's thinking.
+- **[Stockfish Documentation](https://stockfishchess.org/blog/):** Invaluable deep-dives into NNUE and search heuristics.
+
+### 🧠 NNUE & Machine Learning
+- **[official-stockfish/nnue-pytorch](https://github.com/official-stockfish/nnue-pytorch):** The foundation for the training stack and architectural designs.
+- **[Stockfish Training Datasets](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets):** Used high-quality depth-9 quiet position datasets for training `v7`.
+- **[Ranger21 Optimizer](https://github.com/lessw2020/Ranger21):** The advanced optimizer used for stable and fast convergence during NNue training.
+
+### 📡 Web & Infrastructure
+- **[python-chess](https://github.com/niklasf/python-chess):** The incredible Python library that bridges FastAPI to the UCI protocol.
+- **[react-chessboard](https://github.com/Clariity/react-chessboard):** Powers the fluid chessboard UI.
+- **[chess.js](https://github.com/jhlywa/chess.js):** Handles the core chess rules and move validation in the browser.
+- **[Chesskit Analysis](https://github.com/GuillaumeSD/Chesskit):** Inspiration for the game review and move classification logic.
+
+### ☁️ Deployment
+- **[Hugging Face Spaces](https://huggingface.co/spaces):** Specifically designed for HF's Docker-based deployment environment.
+- **[Vercel](https://vercel.com/):** High-speed hosting for the Next.js frontend.
 
 ---
 
-## Repository layout
+## 🔧 Local Development
 
-```
-DeepCastle-Official/
-├── engine/src/          # C++ engine (Stockfish-derived)
-├── training/            # NNUE training, dataloaders, export
-├── server/              # FastAPI API
-├── web/                 # Next.js frontend
-├── game/                # Local tools / pygame helpers
-├── Dockerfile           # HF Spaces image (builds engine + serves API)
-├── MECHANISM.md         # Long-form technical walkthrough
-└── README.md            # This file
+### 1. Engine Build
+```bash
+cd engine/src
+make build ARCH=x86-64-modern
 ```
 
----
-
-## Quick start (local)
-
-**Engine (Windows example):** see `engine/build.bat` / `build_linux.sh`, then run the binary under a UCI GUI or stdin.
-
-**API:**
+### 2. Backend API
 ```bash
 cd server
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 7860
+uvicorn main:app --port 7860
 ```
 
-Point the web app at `http://localhost:7860` via `NEXT_PUBLIC_ENGINE_API_URL`.
+### 3. Web Frontend
+```bash
+cd web
+npm install
+npm run dev
+```
 
 ---
 
-## Credits
+## 🛡️ License
 
-- **Training stack:** [official-stockfish/nnue-pytorch](https://github.com/official-stockfish/nnue-pytorch) ecosystem.
-- **Datasets:** [Stockfish NNUE training datasets](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets).
-- **Search core:** [Stockfish](https://github.com/official-stockfish/Stockfish) (GPLv3).
-- **Analysis:** [Chesskit](https://github.com/GuillaumeSD/Chesskit).
+Deepcastle is released under the **GPLv3 License**, inheriting the open-source spirit of the Stockfish project.
+
+---
+*Created with ❤️ by the Deepcastle Team.*
