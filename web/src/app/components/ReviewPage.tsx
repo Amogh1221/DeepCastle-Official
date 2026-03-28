@@ -338,7 +338,7 @@ export function ReviewPage({
       )}
 
       {!loading && !error && (
-        <div className="flex-1 flex flex-col min-h-0 w-full max-w-none px-2 sm:px-3 lg:pl-3 lg:pr-2 pb-3 pt-2 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 w-full max-w-none px-3 sm:px-4 lg:px-5 pb-3 pt-2 overflow-hidden">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
           {/* Col 1: Board fills column height; evaluation graph pinned to bottom (xl) */}
@@ -346,7 +346,7 @@ export function ReviewPage({
 
             {/* Board region — grows so eval sits at bottom with no dead space below */}
             <div className="flex flex-1 min-h-0 flex-col">
-              <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+              <div className="flex min-h-0 flex-1 gap-2.5 sm:gap-3 min-w-0 pl-0.5">
               {/* Eval bar — matches board cell height */}
               <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px]">
                 <div
@@ -359,9 +359,9 @@ export function ReviewPage({
                 />
               </div>
 
-              {/* Board — slightly inset so edges (coords / shadows) are not clipped */}
-              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-xl border border-white/10 shadow-2xl overflow-visible">
-                <div className="relative aspect-square w-full max-h-full max-w-full max-w-[min(100%,calc(100%-0.5rem))] scale-[0.97] origin-center">
+              {/* Board — inset + max size so coords / eval bar stay inside the column */}
+              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                <div className="relative aspect-square w-full max-h-full min-h-0 mx-auto shrink max-w-[min(100%,min(calc(100vw-2.5rem),85vmin))] scale-[0.88] origin-center sm:scale-[0.9]">
                   <Chessboard
                     options={{
                       position: displayFen,
