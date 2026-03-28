@@ -1,5 +1,5 @@
 # DEEPCASTLE v7
-![Deepcastle Logo](game/DClogo.png)
+![Deepcastle Logo](game/DCLogo.png)
 
 > A custom NNUE chess engine and full-stack web app: train your own HalfKP network, run it in a Stockfish-derived search core, and play in the browser.
 
