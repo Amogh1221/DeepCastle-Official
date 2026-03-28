@@ -1,14 +1,21 @@
-# 👑 DeepCastle v7 (Official)
-![Deepcastle Logo](game/DCLogo.png)
+<div align="center">
+  <img src="game/DCLogo.png" alt="Deepcastle Logo" width="150" />
+  <h1>👑 DeepCastle (Official)</h1>
+
+  <p>A professional-grade, full-stack chess engine ecosystem.</p>
+</div>
+
+<p align="center">
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI" /></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs" alt="Next.js" /></a>
+  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch" alt="PyTorch" /></a>
+  <a href="https://isocpp.org/"><img src="https://img.shields.io/badge/C%2B%2B-00599C?style=for-the-badge&logo=cplusplus" alt="C++" /></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker" alt="Docker" /></a>
+</p>
 
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch)](https://pytorch.org/)
-[![C++](https://img.shields.io/badge/C%2B%2B-00599C?style=for-the-badge&logo=cplusplus)](https://isocpp.org/)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
+It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) with a powerful **Stockfish-derived search core** and a modern web interface.
 
-**Deepcastle v7** is a professional-grade, full-stack chess engine ecosystem. It combines a **custom-trained NNUE** (Efficiently Updatable Neural Network) with a powerful **Stockfish-derived search core** and a modern web interface.
 
 > [!TIP]
 > **Play Live:** [deep-castle-official.vercel.app](https://deep-castle-official.vercel.app/)
