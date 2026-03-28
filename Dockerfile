@@ -63,7 +63,7 @@ RUN chmod -R 777 /app/engine_bin
 RUN if [ -f /app/server/requirements.txt ]; then \
       pip install --no-cache-dir -r /app/server/requirements.txt; \
     else \
-      pip install --no-cache-dir fastapi "uvicorn[standard]" websockets python-chess pydantic; \
+      pip install --no-cache-dir fastapi "uvicorn[standard]" websockets python-chess pydantic psutil; \
     fi
 
 # Explicit Paths

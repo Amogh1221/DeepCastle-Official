@@ -11,6 +11,7 @@ import chess.engine
 import asyncio
 import json
 import gc
+import psutil
 
 # ─── Multiplayer / Challenge Manager ──────────────────────────────────────────
 class ConnectionManager:
@@ -242,9 +243,59 @@ async def _engine_call(engine, coro, timeout_sec: float):
         raise HTTPException(status_code=504, detail="Engine search timed out")
 
 
+# ─── Background Memory Cleanup Task ───────────────────────────────────────────
+# RAM threshold in MB above which engine hash is also cleared (tune to your HF plan)
+_RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "400"))
+# How often to run the cleanup in seconds (default: 5 minutes)
+_RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "300"))
+
+async def memory_cleanup_task():
+    """
+    Background task that runs every 5 minutes.
+    - Always nudges Python GC to free unreferenced objects.
+    - If RAM exceeds threshold, also clears engine hash table.
+    """
+    while True:
+        await asyncio.sleep(_RAM_CLEANUP_INTERVAL_SEC)
+        try:
+            process = psutil.Process(os.getpid())
+            mem_mb = process.memory_info().rss / 1024 / 1024
+
+            # Always run Python GC
+            gc.collect()
+
+            if mem_mb > _RAM_CLEANUP_THRESHOLD_MB:
+                print(f"[CLEANUP] RAM at {mem_mb:.1f}MB (threshold {_RAM_CLEANUP_THRESHOLD_MB}MB) — clearing engine hash")
+                engine = _GLOBAL_DEEPCASTLE_ENGINE
+                if engine is not None:
+                    try:
+                        if not engine.is_terminated():
+                            async with _ENGINE_IO_LOCK:
+                                await _clear_engine_hash(engine)
+                    except Exception:
+                        pass
+                gc.collect()
+                after_mb = process.memory_info().rss / 1024 / 1024
+                print(f"[CLEANUP] Done. RAM: {mem_mb:.1f}MB → {after_mb:.1f}MB")
+            else:
+                print(f"[CLEANUP] RAM at {mem_mb:.1f}MB — OK, no action needed")
+
+        except Exception as e:
+            print(f"[CLEANUP] Error during cleanup: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Start background memory cleanup task on boot
+    cleanup_task = asyncio.create_task(memory_cleanup_task())
+    print(f"[STARTUP] Memory cleanup task started (every {_RAM_CLEANUP_INTERVAL_SEC}s, threshold {_RAM_CLEANUP_THRESHOLD_MB}MB)")
     yield
+    # On shutdown: cancel cleanup task then quit engine
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     await shutdown_engine_async()
 
 
@@ -277,7 +328,6 @@ async def websocket_endpoint(websocket: WebSocket, match_id: str):
             await manager.broadcast(data, match_id, exclude=websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket, match_id)
-        # FIX: Broadcast disconnect then nudge GC to free room state
         await manager.broadcast(json.dumps({"type": "opponent_disconnected"}), match_id)
         gc.collect()
     except Exception:
@@ -286,7 +336,7 @@ async def websocket_endpoint(websocket: WebSocket, match_id: str):
         gc.collect()
 
 
-# ─── Health ────────────────────────────────────────────────────────────────────
+# ─── Health & Monitoring ───────────────────────────────────────────────────────
 @app.get("/")
 def home():
     return {"status": "online", "engine": "Deepcastle Hybrid Neural", "platform": "Hugging Face Spaces"}
@@ -297,7 +347,6 @@ def home():
 def health():
     if not os.path.exists(DEEPCASTLE_ENGINE_PATH):
         return {"status": "error", "message": "Missing engine binary: deepcastle"}
-    # FIX: Nudge GC on every health ping
     gc.collect()
     return {"status": "ok", "engine": "deepcastle"}
 
@@ -317,7 +366,26 @@ async def health_ready():
         raise HTTPException(status_code=503, detail=str(e))
 
 
-# FIX: New endpoint — call from frontend when a game starts or ends
+@app.get("/ram")
+def ram_usage():
+    """Monitor RAM usage — call this anytime to check memory health."""
+    process = psutil.Process(os.getpid())
+    mem = process.memory_info()
+    mem_mb = mem.rss / 1024 / 1024
+    return {
+        "rss_mb": round(mem_mb, 2),                        # actual RAM used
+        "vms_mb": round(mem.vms / 1024 / 1024, 2),         # virtual memory
+        "threshold_mb": _RAM_CLEANUP_THRESHOLD_MB,          # cleanup trigger
+        "cleanup_interval_sec": _RAM_CLEANUP_INTERVAL_SEC,  # how often cleanup runs
+        "status": "high" if mem_mb > _RAM_CLEANUP_THRESHOLD_MB else "ok",
+        "active_rooms": len(manager.active_connections),    # live websocket rooms
+        "active_connections": sum(
+            len(v) for v in manager.active_connections.values()
+        ),
+    }
+
+
+# FIX: Call from frontend on game start/end to clear engine hash
 @app.post("/new-game")
 async def new_game():
     """
@@ -389,7 +457,6 @@ async def get_move(request: MoveRequest):
         score_cp, mate_in = get_normalized_score(info)
         depth, nodes, nps = normalize_search_stats(info)
 
-        # FIX: Use a local pv_board and delete it after use
         pv_board = board.copy()
         pv_parts = []
         for m in info.get("pv", [])[:5]:
@@ -402,17 +469,15 @@ async def get_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
-        del pv_board  # FIX: Explicitly free board copy
+        del pv_board  # FIX: Free board copy
 
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
-
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
         best_move = result.move.uci()
 
-        # FIX: Explicitly release engine result and info objects
-        del result
-        del info
+        del result  # FIX: Free engine result
+        del info    # FIX: Free info dict
 
         return MoveResponse(
             bestmove=best_move,
@@ -457,7 +522,6 @@ async def get_analysis_move(request: MoveRequest):
         score_cp, mate_in = get_normalized_score(info)
         depth, nodes, nps = normalize_search_stats(info)
 
-        # FIX: Use a local pv_board and delete it after use
         pv_board = board.copy()
         pv_parts = []
         for m in info.get("pv", [])[:5]:
@@ -470,19 +534,17 @@ async def get_analysis_move(request: MoveRequest):
             else:
                 break
         pv = " ".join(pv_parts)
-        del pv_board  # FIX: Explicitly free board copy
+        del pv_board  # FIX: Free board copy
 
         score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
-
         board_fen_only = board.fen().split(" ")[0]
         opening_name = openings_db.get(board_fen_only)
         best_move = result.move.uci()
 
-        # FIX: Explicitly release engine result and info objects
-        del result
-        del info
+        del result  # FIX: Free engine result
+        del info    # FIX: Free info dict
 
-        # FIX: Clear hash after hint — hint is a one-shot search, no continuity needed
+        # FIX: Clear hash after hint — one-shot search, no continuity needed
         async with _ENGINE_IO_LOCK:
             await _clear_engine_hash(engine)
         gc.collect()
@@ -681,8 +743,7 @@ async def analyze_game(request: AnalyzeRequest):
 
         player_is_white = (request.player_color.lower() == "white")
 
-        # FIX: Sliding window instead of ever-growing lists
-        # We only ever need the last 3 FENs and last 2 moves for classification
+        # FIX: Sliding window — only keep last 3 FENs and last 2 moves, never grows
         fen_window: List[str] = [board.fen()]
         move_window: List[chess.Move] = []
 
@@ -713,11 +774,10 @@ async def analyze_game(request: AnalyzeRequest):
                         alt_win_pct_before = get_win_percentage(line)
                         break
 
-            # FIX: Copy board before move, delete right after classification
             board_before_move = board.copy()
             board.push(move)
 
-            # FIX: Sliding window — discard oldest entry beyond what we need
+            # FIX: Sliding window — discard oldest beyond what we need
             move_window.append(move)
             if len(move_window) > 2:
                 move_window.pop(0)
@@ -739,13 +799,11 @@ async def analyze_game(request: AnalyzeRequest):
             win_pct_after = get_win_percentage(info_after_dict)
             score_after, _ = get_normalized_score(info_after_dict)
             current_score = score_after
-
             best_pv_after = info_after_dict.get("pv", [])
 
             fen_two_moves_ago = fen_window[0] if len(fen_window) == 3 else None
             uci_next_two_moves = tuple(move_window[-2:]) if len(move_window) >= 2 else None
 
-            # Classify
             cls = "Book"
             opening_name = None
             board_fen_only = board.fen().split(" ")[0]
@@ -767,7 +825,7 @@ async def analyze_game(request: AnalyzeRequest):
                     best_pv_after=best_pv_after
                 )
 
-            # FIX: Free board copy immediately after classification is done
+            # FIX: Free board copy immediately after classification
             del board_before_move
 
             move_gain = score_after - score_before if is_white_turn else score_before - score_after
