@@ -81,7 +81,6 @@ export function ReviewPage({
   const [flipped, setFlipped] = useState(settings.playerColor === "black");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"review" | "analysis">("review");
-  const [showMoveList, setShowMoveList] = useState(true);
   const [sidelineFen, setSidelineFen] = useState<string | null>(null);
 
   // Analysis tab: engine best line; Game Review: best move from position *before* the played move
@@ -92,8 +91,8 @@ export function ReviewPage({
   const analysisAbortRef = useRef<AbortController | null>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
 
-  // fenAfter = after currentPly moves; fenBefore = before the move at currentPly (for best-move arrow)
-  const { fenAfter, fenBefore, lastMoveAfterPly, lastMovePlayed } = React.useMemo(() => {
+  // fenAfter = position after currentPly moves (board always shows this in review). fenBefore = for engine best-move only.
+  const { fenAfter, fenBefore, lastMoveAfterPly } = React.useMemo(() => {
     const g = buildChess(settings.startFen);
     let lastMoveAfterPly: any = null;
     for (let i = 0; i < currentPly; i++) {
@@ -101,27 +100,19 @@ export function ReviewPage({
     }
     const fenAfter = g.fen();
     if (currentPly === 0) {
-      return { fenAfter, fenBefore: null as string | null, lastMoveAfterPly: null, lastMovePlayed: null };
+      return { fenAfter, fenBefore: null as string | null, lastMoveAfterPly: null };
     }
     const g2 = buildChess(settings.startFen);
     for (let i = 0; i < currentPly - 1; i++) {
       try { g2.move(moves[i]); } catch (e) { }
     }
-    const fb = g2.fen();
-    let played: any = null;
-    try {
-      played = g2.move(moves[currentPly - 1]);
-      g2.undo();
-    } catch (e) { }
-    return { fenAfter, fenBefore: fb, lastMoveAfterPly, lastMovePlayed: played };
+    return { fenAfter, fenBefore: g2.fen(), lastMoveAfterPly };
   }, [moves, currentPly, settings.startFen]);
 
-  const displayFen =
-    tab === "review"
-      ? (currentPly === 0 ? fenAfter : (fenBefore ?? fenAfter))
-      : (sidelineFen || fenAfter);
+  const displayFen = tab === "review" ? fenAfter : (sidelineFen || fenAfter);
 
-  const lastMoveForHighlight = tab === "review" ? lastMovePlayed : lastMoveAfterPly;
+  const lastMoveForHighlight =
+    tab === "analysis" && sidelineFen ? null : lastMoveAfterPly;
 
   // Run full-game analysis
   useEffect(() => {
@@ -267,12 +258,55 @@ export function ReviewPage({
     return false;
   }
 
+  const moveHistoryList = (
+    <div ref={moveListRef} className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-0.5 custom-scrollbar overscroll-contain">
+      {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
+        const whitePly = i * 2 + 1;
+        const blackPly = i * 2 + 2;
+        const whiteMove = moves[i * 2];
+        const blackMove = moves[i * 2 + 1];
+        const whiteAnalysis = analysis?.moves?.[i * 2];
+        const blackAnalysis = analysis?.moves?.[i * 2 + 1];
+        return (
+          <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/5">
+            <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
+            <button type="button" data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
+              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+              {whiteAnalysis && (
+                <img
+                  src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
+                  alt=""
+                  className="w-3.5 h-3.5 shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+              <span className="font-bold">{whiteMove}</span>
+            </button>
+            <button type="button" data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
+              disabled={!blackMove}
+              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
+              {blackAnalysis && (
+                <img
+                  src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
+                  alt=""
+                  className="w-3.5 h-3.5 shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+              <span className="font-bold">{blackMove || ""}</span>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <main className="min-h-screen bg-[#111113] text-slate-100 flex flex-col items-center justify-start p-2 lg:p-4">
+    <main className="min-h-[100dvh] xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden flex flex-col bg-[#111113] text-slate-100">
 
       {/* LOADING */}
       {loading && (
-        <div className="flex flex-col items-center gap-5 mt-20">
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4">
           <div className="relative w-20 h-20">
             <div className="w-20 h-20 border-4 border-emerald-500/30 rounded-full" />
             <div className="absolute inset-0 w-20 h-20 border-4 border-t-emerald-400 rounded-full animate-spin" />
@@ -288,7 +322,7 @@ export function ReviewPage({
 
       {/* ERROR */}
       {!loading && error && (
-        <div className="flex flex-col items-center gap-6 max-w-sm text-center mt-20">
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 max-w-sm text-center px-4">
           <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20">
             <AlertTriangle className="w-8 h-8 text-red-400" />
           </div>
@@ -304,10 +338,11 @@ export function ReviewPage({
       )}
 
       {!loading && !error && (
-        <div className="w-full max-w-[1240px] mx-auto flex flex-col xl:flex-row gap-8">
+        <div className="flex-1 flex flex-col min-h-0 w-full max-w-[1680px] mx-auto px-2 sm:px-4 pb-3 pt-2 overflow-hidden">
+          <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 flex-1 min-h-0 xl:overflow-hidden xl:items-stretch">
 
-          {/* LEFT: Board + Graph + Nav */}
-          <div className="flex flex-col gap-4 w-full xl:w-[540px] shrink-0">
+          {/* Col 1: Board + graph + mobile nav */}
+          <div className="flex flex-col gap-3 w-full xl:w-[min(36vw,420px)] xl:max-w-[440px] shrink-0 xl:min-h-0">
 
             {/* Board row with eval bar */}
             <div className="flex gap-2 sm:gap-3">
@@ -366,14 +401,6 @@ export function ReviewPage({
                     })()
                   )}
                 </div>
-                {tab === "review" && currentPly > 0 && (
-                  <p className="text-[10px] text-slate-500 text-center px-1 mt-2 leading-snug">
-                    <span className="text-emerald-400/90 font-bold">Green arrow</span>
-                    {" "}= engine best move ·{" "}
-                    <span className="text-amber-200/80 font-bold">Yellow squares</span>
-                    {" "}= move played
-                  </p>
-                )}
               </div>
             </div>
 
@@ -441,8 +468,8 @@ export function ReviewPage({
             </div>
           </div>
 
-          {/* RIGHT: Move List & Analytics */}
-          <div className="flex flex-col gap-3 w-full xl:w-[668px] xl:min-w-[400px]">
+          {/* Col 2: Game review / analysis + desktop nav */}
+          <div className="flex flex-col gap-3 flex-1 min-w-0 min-h-0 xl:overflow-hidden">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -498,94 +525,33 @@ export function ReviewPage({
                   )}
                 </div>
 
-                {/* Current move banner */}
-                <div className="px-4 py-2.5 border-b border-white/5 shrink-0 min-h-[52px] flex items-center">
+                {/* Current move — full width of middle column */}
+                <div className="w-full px-4 py-3 border-b border-white/5 shrink-0 bg-black/15">
                   {currentMove ? (
-                    <div className="flex items-start gap-3 w-full">
-                      <span className="text-slate-400 text-xs w-8 shrink-0 mt-0.5">
-                        {Math.ceil(currentPly / 2)}{currentPly % 2 !== 0 ? "." : "…"}
-                      </span>
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {clsBadge(currentMove.classification)}
-                          <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
-                          <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
-                        </div>
-                        {currentMove.opening && (
-                          <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
-                            <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
-                            <span className="text-[10px] font-bold text-indigo-300 truncate">{currentMove.opening}</span>
+                    <div className="flex flex-col gap-2 w-full max-w-full">
+                      <div className="flex items-start gap-3 w-full">
+                        <span className="text-slate-400 text-xs w-8 shrink-0 mt-0.5">
+                          {Math.ceil(currentPly / 2)}{currentPly % 2 !== 0 ? "." : "…"}
+                        </span>
+                        <div className="flex flex-col gap-2 flex-1 min-w-0 w-full">
+                          <div className="flex items-center gap-2 flex-wrap w-full">
+                            {clsBadge(currentMove.classification)}
+                            <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
+                            <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
                           </div>
-                        )}
+                          {currentMove.opening && (
+                            <div className="w-full flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                              <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span className="text-[11px] font-bold text-indigo-200 leading-snug">{currentMove.opening}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
                     <span className="text-slate-500 text-xs">
-                      {currentPly === 0 ? "Starting position — navigate through moves" : "Navigate to see move analysis"}
+                      {currentPly === 0 ? "Starting position — use arrows to step through moves" : "Navigate to see move analysis"}
                     </span>
-                  )}
-                </div>
-
-                {/* Move list — conditional */}
-                <div className="flex-1 flex flex-col min-h-0 bg-black/10">
-                  <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between shrink-0">
-                    <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Move History</span>
-                    <button
-                      onClick={() => setShowMoveList(!showMoveList)}
-                      className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${showMoveList ? "bg-indigo-500 text-white" : "bg-white/5 text-slate-400 hover:text-white"}`}
-                    >
-                      {showMoveList ? "Hide" : "Show"}
-                    </button>
-                  </div>
-
-                  {showMoveList ? (
-                    <div ref={moveListRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 custom-scrollbar min-h-0">
-                      {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
-                        const whitePly = i * 2 + 1;
-                        const blackPly = i * 2 + 2;
-                        const whiteMove = moves[i * 2];
-                        const blackMove = moves[i * 2 + 1];
-                        const whiteAnalysis = analysis?.moves?.[i * 2];
-                        const blackAnalysis = analysis?.moves?.[i * 2 + 1];
-                        return (
-                          <div key={i} className="flex items-center gap-1 text-xs rounded-lg hover:bg-white/3">
-                            <span className="text-slate-600 w-7 text-right shrink-0 pr-1">{i + 1}.</span>
-                            <button data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
-                              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                              {whiteAnalysis && (
-                                <img
-                                  src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
-                                  alt=""
-                                  className="w-3.5 h-3.5 shrink-0"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                />
-                              )}
-                              <span className="font-bold">{whiteMove}</span>
-                            </button>
-                            <button data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
-                              disabled={!blackMove}
-                              className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-                              {blackAnalysis && (
-                                <img
-                                  src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
-                                  alt=""
-                                  className="w-3.5 h-3.5 shrink-0"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                />
-                              )}
-                              <span className="font-bold">{blackMove || ""}</span>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2 py-4 px-3 text-center border-t border-white/5 bg-black/20">
-                      <span className="text-[10px] text-slate-500">Moves hidden.</span>
-                      <button type="button" onClick={() => setShowMoveList(true)} className="text-[10px] font-black text-emerald-400/90 hover:text-emerald-300 uppercase tracking-wide">
-                        Show list
-                      </button>
-                    </div>
                   )}
                 </div>
               </div>
@@ -610,13 +576,13 @@ export function ReviewPage({
                   )}
                 </div>
 
-                <div className="flex-1 px-4 py-4 overflow-y-auto space-y-4">
+                <div className="flex-1 px-4 py-3 overflow-y-auto xl:overflow-hidden min-h-0 space-y-3">
                   <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-4">
                     <p className="text-xs font-black text-indigo-300 mb-2">How to use Analysis Mode</p>
                     <ul className="text-xs text-slate-400 space-y-1.5 list-none">
                       <li>🟢 Green arrow = engine best move (drag pieces here only)</li>
                       <li>⬅️ ➡️ Arrow keys or nav to browse positions</li>
-                      <li>📊 Game Review tab shows best move before each played move</li>
+                      <li>📊 Game Review shows the position after each move with the engine best line</li>
                     </ul>
                   </div>
 
@@ -658,12 +624,9 @@ export function ReviewPage({
               </div>
             )}
             {/* Nav controls & Actions (Desktop) */}
-            <div className="hidden xl:flex flex-col gap-3 mt-auto pt-4 border-t border-white/5">
-              <div className="flex items-center gap-2 transition-all">
-                {/* Space on left to push nav to right */}
-                <div className="flex-1" />
-                
-                <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl p-1.5 focus-within:border-indigo-500/30 transition-all shrink-0">
+            <div className="hidden xl:flex flex-col gap-3 shrink-0 pt-3 border-t border-white/5">
+              <div className="flex items-center justify-center w-full">
+                <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-xl p-1.5 focus-within:border-indigo-500/30 transition-all">
                   <button onClick={() => setCurrentPly(0)} className="px-4 py-3 hover:bg-white/5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center group">
                     <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /><ChevronLeft className="w-4 h-4 -ml-2 group-hover:-translate-x-0.5 transition-transform" />
                   </button>
@@ -694,6 +657,16 @@ export function ReviewPage({
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Col 3: Move history — sole scroll region on desktop */}
+          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch xl:w-[288px] xl:shrink-0 w-full rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-white/5 shrink-0 bg-black/25">
+              <span className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Move history</span>
+            </div>
+            {moveHistoryList}
+          </div>
+
           </div>
         </div>
       )}
