@@ -341,8 +341,8 @@ export function ReviewPage({
         <div className="flex-1 flex flex-col min-h-0 w-full max-w-[1680px] mx-auto px-2 sm:px-4 pb-3 pt-2 overflow-hidden">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 flex-1 min-h-0 xl:overflow-hidden xl:items-stretch">
 
-          {/* Col 1: Board + graph + mobile nav */}
-          <div className="flex flex-col gap-3 w-full xl:w-[min(36vw,420px)] xl:max-w-[440px] shrink-0 xl:min-h-0">
+          {/* Col 1: Board + graph + mobile nav — larger share of width */}
+          <div className="flex flex-col gap-3 w-full xl:flex-[1.4] xl:min-w-0 xl:max-w-[min(92vw,680px)] xl:basis-0 xl:min-h-0">
 
             {/* Board row with eval bar */}
             <div className="flex gap-2 sm:gap-3">
@@ -468,8 +468,8 @@ export function ReviewPage({
             </div>
           </div>
 
-          {/* Col 2: Game review / analysis + desktop nav */}
-          <div className="flex flex-col gap-3 flex-1 min-w-0 min-h-0 xl:overflow-hidden">
+          {/* Col 2: Game review / analysis + desktop nav — narrower than board */}
+          <div className="flex flex-col gap-3 w-full xl:flex-[0.55] xl:min-w-[220px] xl:max-w-[380px] xl:basis-0 min-w-0 min-h-0 xl:overflow-hidden">
 
             {/* Tabs */}
             <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
@@ -660,7 +660,7 @@ export function ReviewPage({
           </div>
 
           {/* Col 3: Move history — sole scroll region on desktop */}
-          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch xl:w-[288px] xl:shrink-0 w-full rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
+          <div className="flex flex-col min-h-0 max-h-[min(42vh,380px)] xl:max-h-none xl:self-stretch xl:w-[260px] 2xl:w-[272px] xl:shrink-0 w-full rounded-xl border border-white/5 bg-[#1a1a1f] overflow-hidden">
             <div className="px-3 py-2.5 border-b border-white/5 shrink-0 bg-black/25">
               <span className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Move history</span>
             </div>
