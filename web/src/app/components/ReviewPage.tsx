@@ -224,7 +224,7 @@ export function ReviewPage({
   const chartData = analysis
     ? [{ ply: 0, eval: 0 }, ...analysis.moves.map((m: any) => ({
       ply: m.move_num,
-      eval: Math.max(-8, Math.min(8, m.score_after)),
+      eval: Math.max(-8, Math.min(8, m.score_after ?? 0)),
     }))]
     : [];
 
@@ -360,10 +360,11 @@ export function ReviewPage({
               </div>
 
               {/* Board: square side = min(container width, height) so 8×8 never overflows (w-full+aspect-square was clipping bottom rank). */}
-              <div className="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
-                <div className="relative mx-auto aspect-square w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
+              <div className="relative flex h-full min-h-[300px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-2 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
+                <div className="relative mx-auto aspect-square w-full sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                   <Chessboard
                     options={{
+                      id: "review-board",
                       position: displayFen,
                       boardOrientation: orientation,
                       squareStyles,
@@ -371,6 +372,9 @@ export function ReviewPage({
                       animationDurationInMs: 300,
                       onPieceDrop: ({ sourceSquare, targetSquare }) => targetSquare ? handlePieceDrop(sourceSquare, targetSquare) : false,
                       allowDragging: tab === "analysis",
+                      darkSquareStyle: { backgroundColor: "#779556" },
+                      lightSquareStyle: { backgroundColor: "#ebecd0" },
+                      boardStyle: { borderRadius: "6px" },
                     }}
                   />
 
@@ -540,8 +544,8 @@ export function ReviewPage({
                         <div className="flex flex-col gap-2 flex-1 min-w-0 w-full">
                           <div className="flex items-center gap-2 flex-wrap w-full">
                             {clsBadge(currentMove.classification)}
-                            <span className="text-slate-200 font-bold">{moves[currentPly - 1]}</span>
-                            <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl)}</span>
+                            <span className="text-slate-200 font-bold">{moves[currentPly - 1] || ""}</span>
+                            <span className="text-slate-500 text-[10px] ml-auto shrink-0 uppercase tracking-tighter">CPL {Math.round(currentMove.cpl || 0)}</span>
                           </div>
                           {currentMove.opening && (
                             <div className="w-full flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
