@@ -81,25 +81,47 @@ export function ReviewPage({
   const [flipped, setFlipped] = useState(settings.playerColor === "black");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"review" | "analysis">("review");
-  const [showMoveList, setShowMoveList] = useState(false);
+  const [showMoveList, setShowMoveList] = useState(true);
   const [sidelineFen, setSidelineFen] = useState<string | null>(null);
 
-  // Analysis-mode live eval
+  // Analysis tab: engine best line; Game Review: best move from position *before* the played move
   const [analysisArrows, setAnalysisArrows] = useState<any[]>([]);
+  const [reviewBestArrows, setReviewBestArrows] = useState<any[]>([]);
   const [liveEval, setLiveEval] = useState<string>("");
   const analysisFenRef = useRef("");
   const analysisAbortRef = useRef<AbortController | null>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
 
-  // Build board FEN + lastMove from ply
-  const { fen: currentFen, lastMove } = React.useMemo(() => {
+  // fenAfter = after currentPly moves; fenBefore = before the move at currentPly (for best-move arrow)
+  const { fenAfter, fenBefore, lastMoveAfterPly, lastMovePlayed } = React.useMemo(() => {
     const g = buildChess(settings.startFen);
-    let moveObj: any = null;
+    let lastMoveAfterPly: any = null;
     for (let i = 0; i < currentPly; i++) {
-      try { moveObj = g.move(moves[i]); } catch (e) { }
+      try { lastMoveAfterPly = g.move(moves[i]); } catch (e) { }
     }
-    return { fen: g.fen(), lastMove: moveObj };
+    const fenAfter = g.fen();
+    if (currentPly === 0) {
+      return { fenAfter, fenBefore: null as string | null, lastMoveAfterPly: null, lastMovePlayed: null };
+    }
+    const g2 = buildChess(settings.startFen);
+    for (let i = 0; i < currentPly - 1; i++) {
+      try { g2.move(moves[i]); } catch (e) { }
+    }
+    const fb = g2.fen();
+    let played: any = null;
+    try {
+      played = g2.move(moves[currentPly - 1]);
+      g2.undo();
+    } catch (e) { }
+    return { fenAfter, fenBefore: fb, lastMoveAfterPly, lastMovePlayed: played };
   }, [moves, currentPly, settings.startFen]);
+
+  const displayFen =
+    tab === "review"
+      ? (currentPly === 0 ? fenAfter : (fenBefore ?? fenAfter))
+      : (sidelineFen || fenAfter);
+
+  const lastMoveForHighlight = tab === "review" ? lastMovePlayed : lastMoveAfterPly;
 
   // Run full-game analysis
   useEffect(() => {
@@ -149,13 +171,21 @@ export function ReviewPage({
     setSidelineFen(null);
   }, [currentPly]);
 
-  // Live analysis engine
+  // Engine: Game Review = best move from position before the played move; Analysis = current position
   useEffect(() => {
     analysisAbortRef.current?.abort();
     const ctrl = new AbortController();
     analysisAbortRef.current = ctrl;
-    
-    const targetFen = sidelineFen || currentFen;
+
+    const isReviewBest = tab === "review" && currentPly > 0 && !!fenBefore;
+
+    if (tab === "review" && !isReviewBest) {
+      setReviewBestArrows([]);
+      setLiveEval("");
+      return () => ctrl.abort();
+    }
+
+    const targetFen = isReviewBest ? fenBefore! : (sidelineFen || fenAfter);
     analysisFenRef.current = targetFen;
 
     (async () => {
@@ -163,19 +193,22 @@ export function ReviewPage({
         const res = await fetch(`${API_URL}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fen: targetFen, time: 0.5 }),
+          body: JSON.stringify({ fen: targetFen, time: isReviewBest ? 0.45 : 0.5 }),
           signal: ctrl.signal,
         });
         if (ctrl.signal.aborted) return;
         if (res.ok) {
           const data = await res.json();
           if (analysisFenRef.current !== targetFen) return;
-          if (data.bestmove?.length >= 4) {
-            setAnalysisArrows([{
-              startSquare: data.bestmove.slice(0, 2),
-              endSquare: data.bestmove.slice(2, 4),
-              color: "rgba(163,209,96,0.85)"
-            }]);
+          const arrow = data.bestmove?.length >= 4 ? [{
+            startSquare: data.bestmove.slice(0, 2),
+            endSquare: data.bestmove.slice(2, 4),
+            color: "rgba(16,185,129,0.92)"
+          }] : [];
+          if (isReviewBest) {
+            setReviewBestArrows(arrow);
+          } else {
+            setAnalysisArrows(arrow);
           }
           const s = data.score;
           setLiveEval(s !== undefined ? (s > 0 ? `+${s.toFixed(2)}` : s.toFixed(2)) : "");
@@ -183,8 +216,8 @@ export function ReviewPage({
       } catch { }
     })();
 
-    return () => analysisAbortRef.current?.abort();
-  }, [currentFen, sidelineFen]);
+    return () => ctrl.abort();
+  }, [tab, currentPly, fenBefore, fenAfter, sidelineFen]);
 
   // Scroll active move into view (Desktop only)
   useEffect(() => {
@@ -207,22 +240,13 @@ export function ReviewPage({
   const counts = analysis?.counts ?? {};
 
   const squareStyles: Record<string, React.CSSProperties> = {};
-  if (lastMove) {
-    squareStyles[lastMove.from] = { backgroundColor: "rgba(255,255,0,0.35)" };
-    squareStyles[lastMove.to] = { backgroundColor: "rgba(255,255,0,0.35)" };
+  if (lastMoveForHighlight) {
+    squareStyles[lastMoveForHighlight.from] = { backgroundColor: "rgba(250,204,21,0.32)" };
+    squareStyles[lastMoveForHighlight.to] = { backgroundColor: "rgba(250,204,21,0.32)" };
   }
 
-  const reviewArrows: any[] = [];
-  if (lastMove && currentMove?.classification) {
-    const bad = ["Blunder", "Mistake", "Inaccuracy"].includes(currentMove.classification);
-    reviewArrows.push({
-      startSquare: lastMove.from,
-      endSquare: lastMove.to,
-      color: bad ? "rgba(239,68,68,0.75)" : "rgba(16,185,129,0.75)"
-    });
-  }
-
-  const boardArrows = sidelineFen ? analysisArrows : (tab === "analysis" ? analysisArrows : reviewArrows);
+  const boardArrows = tab === "review" ? reviewBestArrows : analysisArrows;
+  const fenForTurn = sidelineFen || fenAfter;
 
   const evalNum = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
   const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
@@ -230,7 +254,7 @@ export function ReviewPage({
   const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
 
   function handlePieceDrop(sourceSquare: string, targetSquare: string) {
-    const startFen = sidelineFen || currentFen;
+    const startFen = sidelineFen || fenAfter;
     const g = new Chess(startFen);
     try {
       const mv = g.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
@@ -304,21 +328,21 @@ export function ReviewPage({
                 <div className="aspect-square w-full relative">
                   <Chessboard
                     options={{
-                      position: sidelineFen || currentFen,
+                      position: displayFen,
                       boardOrientation: orientation,
                       squareStyles,
                       arrows: boardArrows,
                       animationDurationInMs: 300,
                       onPieceDrop: ({ sourceSquare, targetSquare }) => targetSquare ? handlePieceDrop(sourceSquare, targetSquare) : false,
-                      allowDragging: true,
+                      allowDragging: tab === "analysis",
                     }}
                   />
 
                   {/* Move Classification Icon Overlay */}
-                  {currentMove && lastMove && tab !== "analysis" && (
+                  {currentMove && lastMoveForHighlight && tab !== "analysis" && (
                     (() => {
-                      const file = lastMove.to.charCodeAt(0) - 97;
-                      const rank = parseInt(lastMove.to[1]) - 1;
+                      const file = lastMoveForHighlight.to.charCodeAt(0) - 97;
+                      const rank = parseInt(lastMoveForHighlight.to[1]) - 1;
                       const x = orientation === "white" ? file : 7 - file;
                       const y = orientation === "white" ? 7 - rank : rank;
                       return (
@@ -342,20 +366,28 @@ export function ReviewPage({
                     })()
                   )}
                 </div>
+                {tab === "review" && currentPly > 0 && (
+                  <p className="text-[10px] text-slate-500 text-center px-1 mt-2 leading-snug">
+                    <span className="text-emerald-400/90 font-bold">Green arrow</span>
+                    {" "}= engine best move ·{" "}
+                    <span className="text-amber-200/80 font-bold">Yellow squares</span>
+                    {" "}= move played
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Eval Graph */}
-            <div className="h-20 sm:h-24 bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:p-4 shrink-0 relative">
-              <div className="flex items-center justify-between mb-1">
+            <div className="h-28 sm:h-32 bg-[#161619] rounded-xl border border-white/5 px-3 py-2 sm:p-4 shrink-0 relative">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Evaluation</span>
-                {tab === "analysis" && liveEval && (
+                {liveEval && (
                   <span className={`text-xs font-black ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
                     {liveEval}
                   </span>
                 )}
               </div>
-              <ResponsiveContainer width="100%" height="75%">
+              <ResponsiveContainer width="100%" height="78%">
                 <AreaChart data={chartData} onClick={(e: any) => {
                   try {
                     if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
@@ -548,9 +580,11 @@ export function ReviewPage({
                       })}
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-10 opacity-40 text-center">
-                       <Zap className="w-8 h-8 mb-2 text-indigo-400" />
-                       <p className="text-xs font-bold text-slate-400">Move list is hidden</p>
+                    <div className="flex items-center justify-center gap-2 py-4 px-3 text-center border-t border-white/5 bg-black/20">
+                      <span className="text-[10px] text-slate-500">Moves hidden.</span>
+                      <button type="button" onClick={() => setShowMoveList(true)} className="text-[10px] font-black text-emerald-400/90 hover:text-emerald-300 uppercase tracking-wide">
+                        Show list
+                      </button>
                     </div>
                   )}
                 </div>
@@ -580,10 +614,9 @@ export function ReviewPage({
                   <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-4">
                     <p className="text-xs font-black text-indigo-300 mb-2">How to use Analysis Mode</p>
                     <ul className="text-xs text-slate-400 space-y-1.5 list-none">
-                      <li>🟢 Green arrow = Engine's best move</li>
-                      <li>⬅️ ➡️ Use arrow keys or nav buttons to browse</li>
-                      <li>🔄 Tap Flip to switch board perspective</li>
-                      <li>📊 Click the graph to jump to any position</li>
+                      <li>🟢 Green arrow = engine best move (drag pieces here only)</li>
+                      <li>⬅️ ➡️ Arrow keys or nav to browse positions</li>
+                      <li>📊 Game Review tab shows best move before each played move</li>
                     </ul>
                   </div>
 
@@ -595,7 +628,7 @@ export function ReviewPage({
                     <div className="bg-black/20 rounded-lg p-3 border border-white/5">
                       <p className="text-[9px] text-slate-500 uppercase font-black">Turn</p>
                       <p className="text-lg font-black text-white">
-                        {currentFen.split(" ")[1] === "w" ? "⬜ White" : "⬛ Black"}
+                        {fenForTurn.split(" ")[1] === "w" ? "⬜ White" : "⬛ Black"}
                       </p>
                     </div>
                   </div>
@@ -653,11 +686,11 @@ export function ReviewPage({
               </div>
 
               <div className="flex gap-2">
-                <button onClick={() => setFlipped(f => !f)} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all text-xs font-black uppercase tracking-widest text-slate-300 flex items-center justify-center gap-2">
-                  <RotateCcw className="w-4 h-4" /> Flip Board
+                <button type="button" onClick={() => setFlipped(f => !f)} className="flex-1 min-w-0 py-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all text-xs font-black uppercase tracking-widest text-slate-300 flex items-center justify-center gap-2">
+                  <RotateCcw className="w-4 h-4 shrink-0" /> Flip
                 </button>
-                <button onClick={onHome} className="flex-[2] py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.3)] transition-all text-xs font-black uppercase tracking-widest text-white flex items-center justify-center gap-2">
-                  <Home className="w-4 h-4" /> Return Home
+                <button type="button" onClick={onHome} className="flex-1 min-w-0 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.25)] transition-all text-xs font-black uppercase tracking-widest text-white flex items-center justify-center gap-2">
+                  <Home className="w-4 h-4 shrink-0" /> Home
                 </button>
               </div>
             </div>
