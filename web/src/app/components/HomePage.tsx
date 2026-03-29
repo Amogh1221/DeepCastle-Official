@@ -23,7 +23,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     {
       icon: <Trophy className="w-6 h-6" />,
       label: "Estimated Elo",
-      value: "3437",
+      value: "~3437",
       sub: "played against stockfish 18 on cutechess-cli",
       color: "from-amber-500 to-orange-600",
     },
