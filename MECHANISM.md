@@ -2,9 +2,7 @@
 
 ---
 
-## Table of Contents
 
-10. [Full System Diagram](#10-full-system-diagram)
 
 ---
 
