@@ -160,6 +160,25 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   const analysisAbortRef = useRef<AbortController | null>(null);
   const analysisFenRef = useRef<string>("");
 
+  // Clear engine hash between games (prevents unbounded memory growth).
+  // Also used on initial mount so a fresh game starts from a clean engine state.
+  const resetEngineHash = useCallback(() => {
+    fetch(`${API_URL}/new-game`, { method: "POST" }).catch(() => {});
+  }, []);
+
+  const stopBackgroundAnalysis = useCallback(() => {
+    if (analysisAbortRef.current) {
+      analysisAbortRef.current.abort();
+      analysisAbortRef.current = null;
+    }
+  }, []);
+
+  // Run once per page load: ensures we don't start with an already-populated hash table.
+  useEffect(() => {
+    resetEngineHash();
+    return () => stopBackgroundAnalysis();
+  }, [resetEngineHash, stopBackgroundAnalysis]);
+
   // Eval bar logic
   const scoreForWhite = stats.score;
   const rawWinProb = Math.max(5, Math.min(95, 50 + scoreForWhite * 7));
@@ -248,10 +267,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     setBotMessage("Analyzing potential lines...");
     
     // Stop background analysis while bot is thinking
-    if (analysisAbortRef.current) { 
-      analysisAbortRef.current.abort(); 
-      analysisAbortRef.current = null; 
-    }
+    stopBackgroundAnalysis();
 
     try {
       const response = await fetch(`${API_URL}/move`, {
@@ -319,7 +335,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     const controller = new AbortController();
     analysisAbortRef.current = controller;
 
-    const thinkTimes = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0];
+    const thinkTimes = [0.05, 0.1, 0.2, 0.5];
     let idx = 0;
 
     const runNext = async () => {
@@ -369,10 +385,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     if (isPlayerTurn && !gameEnded) {
       startBackgroundAnalysis(gameRef.current.fen());
     } else {
-      if (analysisAbortRef.current) { analysisAbortRef.current.abort(); analysisAbortRef.current = null; }
+      stopBackgroundAnalysis();
     }
     return () => {
-      if (analysisAbortRef.current) { analysisAbortRef.current.abort(); }
+      stopBackgroundAnalysis();
     };
   }, [isPlayerTurn, gameEnded]);
 
@@ -404,6 +420,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   }, []);
 
   function handleGameOver(g: Chess) {
+    stopBackgroundAnalysis();
+    resetEngineHash();
     setGameEnded(true);
     if (g.isCheckmate()) {
       const loser = g.turn(); // whoever is to move is in checkmate
@@ -509,6 +527,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
   // ── Controls ──
   function resetGame() {
+    stopBackgroundAnalysis();
+    resetEngineHash();
     const fresh = new Chess();
     gameRef.current = fresh;
     setFen(fresh.fen());
@@ -545,6 +565,8 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   }
 
   function confirmResign() {
+    stopBackgroundAnalysis();
+    resetEngineHash();
     setShowResignConfirm(false);
     setGameEnded(true);
     setGameResult({
@@ -557,7 +579,6 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       socketRef.current.send(JSON.stringify({ type: "resign" }));
     }
   }
-
 
 
   return (

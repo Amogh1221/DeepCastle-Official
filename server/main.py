@@ -125,7 +125,8 @@ _ENGINE_IO_LOCK = asyncio.Lock()
 
 def _engine_hash_mb() -> int:
     try:
-        v = int(os.environ.get("ENGINE_HASH_MB", "128"))
+        # Default kept conservative to prevent hash table blowups on small VMs.
+        v = int(os.environ.get("ENGINE_HASH_MB", "32"))
     except ValueError:
         v = 128
     return max(8, min(512, v))
@@ -261,7 +262,7 @@ async def _engine_call(engine, coro, timeout_sec: float):
 
 
 # ─── Background Memory Cleanup Task ───────────────────────────────────────────
-_RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "400"))
+_RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "300"))
 _RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "300"))
 
 async def memory_cleanup_task():

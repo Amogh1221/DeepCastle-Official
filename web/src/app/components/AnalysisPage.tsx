@@ -52,7 +52,8 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
     setIsAnalyzing(true);
     setLiveEval("...");
 
-    const thinkTimes = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0];
+    // Keep analysis light to avoid excessive hash growth/memory spikes.
+    const thinkTimes = [0.05, 0.1, 0.2, 0.5];
     let idx = 0;
 
     const runNext = async () => {
