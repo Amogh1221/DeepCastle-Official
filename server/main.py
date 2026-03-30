@@ -263,7 +263,8 @@ async def _engine_call(engine, coro, timeout_sec: float):
 
 # ─── Background Memory Cleanup Task ───────────────────────────────────────────
 _RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "300"))
-_RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "300"))
+_RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "60"))
+_CLEAR_HASH_AFTER_MOVE = os.environ.get("CLEAR_HASH_AFTER_MOVE", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 async def memory_cleanup_task():
     """
@@ -303,6 +304,7 @@ async def memory_cleanup_task():
 async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(memory_cleanup_task())
     print(f"[STARTUP] Memory cleanup task started (every {_RAM_CLEANUP_INTERVAL_SEC}s, threshold {_RAM_CLEANUP_THRESHOLD_MB}MB)")
+    print(f"[STARTUP] Engine hash config: hash_mb={_engine_hash_mb()} clear_after_move={_CLEAR_HASH_AFTER_MOVE}")
     yield
     cleanup_task.cancel()
     try:
@@ -490,7 +492,7 @@ async def get_move(request: MoveRequest):
         del result
         del info
 
-        return MoveResponse(
+        response = MoveResponse(
             bestmove=best_move,
             score=score_pawns,
             depth=depth,
@@ -500,6 +502,13 @@ async def get_move(request: MoveRequest):
             mate_in=mate_in,
             opening=opening_name
         )
+        # On constrained RAM environments (e.g. HF Spaces), keeping hash between
+        # move calls can still cause memory pressure over long games.
+        if _CLEAR_HASH_AFTER_MOVE:
+            async with _ENGINE_IO_LOCK:
+                await _clear_engine_hash(engine)
+            force_memory_release()
+        return response
     except HTTPException:
         raise
     except Exception as e:
