@@ -272,6 +272,7 @@ async def _engine_call(engine, coro, timeout_sec: float):
 _RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "300"))
 _RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "60"))
 _CLEAR_HASH_AFTER_MOVE = os.environ.get("CLEAR_HASH_AFTER_MOVE", "1").strip().lower() not in {"0", "false", "no", "off"}
+_RESTART_ENGINE_AFTER_MOVE = os.environ.get("RESTART_ENGINE_AFTER_MOVE", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 async def memory_cleanup_task():
     """
@@ -311,7 +312,10 @@ async def memory_cleanup_task():
 async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(memory_cleanup_task())
     print(f"[STARTUP] Memory cleanup task started (every {_RAM_CLEANUP_INTERVAL_SEC}s, threshold {_RAM_CLEANUP_THRESHOLD_MB}MB)")
-    print(f"[STARTUP] Engine hash config: hash_mb={_engine_hash_mb()} clear_after_move={_CLEAR_HASH_AFTER_MOVE}")
+    print(
+        f"[STARTUP] Engine config: hash_mb={_engine_hash_mb()} "
+        f"clear_after_move={_CLEAR_HASH_AFTER_MOVE} restart_after_move={_RESTART_ENGINE_AFTER_MOVE}"
+    )
     yield
     cleanup_task.cancel()
     try:
@@ -489,48 +493,51 @@ async def get_move(request: MoveRequest):
                     tsec,
                 )
 
-        score_cp, mate_in = get_normalized_score(info)
-        depth, nodes, nps = normalize_search_stats(info)
+            score_cp, mate_in = get_normalized_score(info)
+            depth, nodes, nps = normalize_search_stats(info)
 
-        pv_board = board.copy()
-        pv_parts = []
-        for m in info.get("pv", [])[:5]:
-            if m in pv_board.legal_moves:
-                try:
-                    pv_parts.append(pv_board.san(m))
-                    pv_board.push(m)
-                except Exception:
+            pv_board = board.copy()
+            pv_parts = []
+            for m in info.get("pv", [])[:5]:
+                if m in pv_board.legal_moves:
+                    try:
+                        pv_parts.append(pv_board.san(m))
+                        pv_board.push(m)
+                    except Exception:
+                        break
+                else:
                     break
-            else:
-                break
-        pv = " ".join(pv_parts)
-        del pv_board
+            pv = " ".join(pv_parts)
+            del pv_board
 
-        score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
-        board_fen_only = board.fen().split(" ")[0]
-        opening_name = openings_db.get(board_fen_only)
-        best_move = result.move.uci()
+            score_pawns = score_cp / 100.0 if abs(score_cp) < 9900 else (100.0 if score_cp > 0 else -100.0)
+            board_fen_only = board.fen().split(" ")[0]
+            opening_name = openings_db.get(board_fen_only)
+            best_move = result.move.uci()
 
-        del result
-        del info
+            response = MoveResponse(
+                bestmove=best_move,
+                score=score_pawns,
+                depth=depth,
+                nodes=nodes,
+                nps=nps,
+                pv=pv,
+                mate_in=mate_in,
+                opening=opening_name
+            )
 
-        response = MoveResponse(
-            bestmove=best_move,
-            score=score_pawns,
-            depth=depth,
-            nodes=nodes,
-            nps=nps,
-            pv=pv,
-            mate_in=mate_in,
-            opening=opening_name
-        )
-        # On constrained RAM environments (e.g. HF Spaces), keeping hash between
-        # move calls can still cause memory pressure over long games.
-        if _CLEAR_HASH_AFTER_MOVE:
-            async with _ENGINE_IO_LOCK:
+            # IMPORTANT: do reset/clear while holding the engine IO lock so no
+            # other /move call can reuse a half-cleared engine.
+            if _RESTART_ENGINE_AFTER_MOVE:
+                await _detach_and_quit_engine(engine)
+                force_memory_release()
+            elif _CLEAR_HASH_AFTER_MOVE:
                 await _clear_engine_hash(engine)
-            force_memory_release()
-        return response
+                force_memory_release()
+
+            del result
+            del info
+            return response
     except HTTPException:
         raise
     except Exception as e:
