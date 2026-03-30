@@ -125,8 +125,8 @@ _ENGINE_IO_LOCK = asyncio.Lock()
 
 def _engine_hash_mb() -> int:
     try:
-        # Default kept conservative to prevent hash table blowups on small VMs.
-        v = int(os.environ.get("ENGINE_HASH_MB", "32"))
+        # Default used for transposition table size testing.
+        v = int(os.environ.get("ENGINE_HASH_MB", "512"))
     except ValueError:
         v = 128
     return max(8, min(512, v))
@@ -593,9 +593,12 @@ async def get_analysis_move(request: MoveRequest):
         del result
         del info
 
-        # FIX: Clear hash + force memory back to OS after hint
+        # FIX: clear/restart engine to keep memory stable after hint
         async with _ENGINE_IO_LOCK:
-            await _clear_engine_hash(engine)
+            if _RESTART_ENGINE_AFTER_MOVE:
+                await _detach_and_quit_engine(engine)
+            elif _CLEAR_HASH_AFTER_MOVE:
+                await _clear_engine_hash(engine)
         force_memory_release()
 
         return MoveResponse(
@@ -910,9 +913,12 @@ async def analyze_game(request: AnalyzeRequest):
         accuracy = max(10.0, min(100.0, 100.0 * math.exp(-0.005 * avg_cpl)))
         estimated_elo = int(max(400, min(3600, round(3600 * math.exp(-0.015 * avg_cpl)))))
 
-        # FIX: Clear engine hash + force memory back to OS after full game analysis
+        # FIX: Clear/restart engine to keep memory stable after full game analysis
         async with _ENGINE_IO_LOCK:
-            await _clear_engine_hash(engine)
+            if _RESTART_ENGINE_AFTER_MOVE:
+                await _detach_and_quit_engine(engine)
+            elif _CLEAR_HASH_AFTER_MOVE:
+                await _clear_engine_hash(engine)
         force_memory_release()
 
         return AnalyzeResponse(
