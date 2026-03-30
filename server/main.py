@@ -199,9 +199,16 @@ async def get_stockfish_engine():
 
 
 async def _clear_engine_hash(engine) -> None:
-    """Send ucinewgame to clear the engine hash table and reset internal state."""
+    """Best-effort clear of transposition table/internal game state."""
     try:
-        await engine.send_command("ucinewgame")
+        # Preferred path for Stockfish-family engines.
+        await engine.configure({"Clear Hash": True})
+    except Exception:
+        pass
+    try:
+        # Also reset game state so the engine does not keep game-history context.
+        if hasattr(engine, "protocol") and hasattr(engine.protocol, "send_line"):
+            engine.protocol.send_line("ucinewgame")
         await asyncio.wait_for(engine.ping(), timeout=5.0)
     except Exception as e:
         print(f"[WARNING] Failed to clear engine hash: {e}")
@@ -383,16 +390,31 @@ async def health_ready():
 
 @app.get("/ram")
 def ram_usage():
-    """Monitor RAM usage — call anytime to check memory health."""
+    """Monitor RAM usage for API process + child engine processes."""
     process = psutil.Process(os.getpid())
     mem = process.memory_info()
     mem_mb = mem.rss / 1024 / 1024
+    child_rss_mb = 0.0
+    child_count = 0
+    try:
+        for child in process.children(recursive=True):
+            try:
+                child_rss_mb += child.memory_info().rss / 1024 / 1024
+                child_count += 1
+            except Exception:
+                pass
+    except Exception:
+        pass
+    total_mb = mem_mb + child_rss_mb
     return {
         "rss_mb": round(mem_mb, 2),
+        "child_rss_mb": round(child_rss_mb, 2),
+        "total_process_tree_rss_mb": round(total_mb, 2),
+        "child_process_count": child_count,
         "vms_mb": round(mem.vms / 1024 / 1024, 2),
         "threshold_mb": _RAM_CLEANUP_THRESHOLD_MB,
         "cleanup_interval_sec": _RAM_CLEANUP_INTERVAL_SEC,
-        "status": "high" if mem_mb > _RAM_CLEANUP_THRESHOLD_MB else "ok",
+        "status": "high" if total_mb > _RAM_CLEANUP_THRESHOLD_MB else "ok",
         "active_rooms": len(manager.active_connections),
         "active_connections": sum(len(v) for v in manager.active_connections.values()),
     }
