@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, BookOpen } from "lucide-react";
+import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, BookOpen, Copy, Check } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
@@ -20,6 +20,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   const [flipped, setFlipped] = useState(false);
   const [fenInput, setFenInput] = useState("");
   const [fenError, setFenError] = useState("");
+  const [copiedFen, setCopiedFen] = useState(false);
 
   const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [squareStyles, setSquareStyles] = useState<Record<string, any>>({});
@@ -227,6 +228,12 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
     setOpeningName("");
   }
 
+  function copyToClipboard() {
+    navigator.clipboard.writeText(currentFen);
+    setCopiedFen(true);
+    setTimeout(() => setCopiedFen(false), 2000);
+  }
+
   const evalNum = stats.score;
   const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
   const evalBarFill = rawWinProb;
@@ -340,6 +347,13 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
                 <button onClick={loadFen} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white shadow shadow-indigo-500/20 rounded-lg font-black text-xs transition-all shrink-0">
                   Load
                 </button>
+                <button 
+                  onClick={copyToClipboard}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-400 hover:text-white transition-all shrink-0 flex items-center justify-center min-w-[40px]"
+                  title="Copy Current FEN"
+                >
+                  {copiedFen ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
               </div>
               {fenError && <p className="text-red-400 text-[10px] font-bold mt-1.5">{fenError}</p>}
             </div>
@@ -435,6 +449,13 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
                 />
                 <button onClick={loadFen} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white shadow shadow-indigo-500/20 rounded-lg font-black text-xs transition-all shrink-0">
                   Load
+                </button>
+                <button 
+                  onClick={copyToClipboard}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-400 hover:text-white transition-all shrink-0 flex items-center justify-center min-w-[40px]"
+                  title="Copy Current FEN"
+                >
+                  {copiedFen ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
               {fenError && <p className="text-red-400 text-[10px] font-bold mt-1.5">{fenError}</p>}
