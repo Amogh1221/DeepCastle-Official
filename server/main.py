@@ -129,7 +129,7 @@ def _engine_hash_mb() -> int:
         v = int(os.environ.get("ENGINE_HASH_MB", "512"))
     except ValueError:
         v = 128
-    return max(8, min(512, v))
+    return max(8, min(2048, v))
 
 
 async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional[dict] = None):
@@ -187,15 +187,16 @@ async def _get_or_start_engine(engine_path: str, *, role: str, options: Optional
             raise HTTPException(status_code=500, detail=f"{role} crash: {str(e)}")
 
 
-async def get_deepcastle_engine():
+async def get_deepcastle_engine(hash_mb: Optional[int] = None):
+    h = hash_mb if hash_mb is not None else _engine_hash_mb()
     return await _get_or_start_engine(
         DEEPCASTLE_ENGINE_PATH,
         role="deepcastle",
-        options={"Hash": _engine_hash_mb(), "Threads": 1},
+        options={"Hash": h, "Threads": 1},
     )
 
-async def get_stockfish_engine():
-    return await get_deepcastle_engine()
+async def get_stockfish_engine(hash_mb: Optional[int] = None):
+    return await get_deepcastle_engine(hash_mb=hash_mb)
 
 
 async def _clear_engine_hash(engine) -> None:
@@ -549,7 +550,7 @@ async def get_move(request: MoveRequest):
 @app.post("/analysis-move", response_model=MoveResponse)
 async def get_analysis_move(request: MoveRequest):
     try:
-        engine = await get_stockfish_engine()
+        engine = await get_stockfish_engine(hash_mb=2048)
         board = chess.Board(request.fen)
         limit = chess.engine.Limit(time=request.time, depth=request.depth)
         tsec = _search_timeout_sec(request.time, request.depth)
@@ -772,7 +773,7 @@ def get_move_classification(
 @app.post("/analyze-game", response_model=AnalyzeResponse)
 async def analyze_game(request: AnalyzeRequest):
     try:
-        engine = await get_stockfish_engine()
+        engine = await get_stockfish_engine(hash_mb=2048)
         board = chess.Board(request.start_fen) if request.start_fen else chess.Board()
         limit = chess.engine.Limit(time=request.time_per_move)
 
@@ -785,6 +786,10 @@ async def analyze_game(request: AnalyzeRequest):
                 engine.analyse(board, limit, multipv=2),
                 ply_timeout,
             )
+            # Restart after initial evaluation to clear memory
+            await _detach_and_quit_engine(engine)
+        force_memory_release()
+
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
 
         counts = {
@@ -839,11 +844,15 @@ async def analyze_game(request: AnalyzeRequest):
                 fen_window.pop(0)
 
             async with _ENGINE_IO_LOCK:
+                engine = await get_stockfish_engine(hash_mb=2048)
                 infos_after_raw = await _engine_call(
                     engine,
                     engine.analyse(board, limit, multipv=2),
                     ply_timeout,
                 )
+                # Restart engine after each move in full game review
+                await _detach_and_quit_engine(engine)
+            force_memory_release()
             infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
 
             info_after_dict: dict = infos_after[0]
