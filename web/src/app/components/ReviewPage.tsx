@@ -248,8 +248,10 @@ export function ReviewPage({
 
   const evalNum = currentMove?.score_after ?? (chartData[currentPly]?.eval ?? 0);
   const rawWinProb = Math.max(5, Math.min(95, 50 + evalNum * 7));
-  const evalBarWhite = rawWinProb;
+  
   const orientation = flipped ? (settings.playerColor === "white" ? "black" : "white") : settings.playerColor;
+  const isWhiteBottom = orientation === "white";
+  const evalBarFill = isWhiteBottom ? rawWinProb : 100 - rawWinProb;
 
   // FIX 4: Memoize handlePieceDrop — stops Chessboard from re-rendering on every render
   const handlePieceDrop = useCallback((sourceSquare: string, targetSquare: string) => {
@@ -355,14 +357,16 @@ export function ReviewPage({
                 <div className="flex min-h-0 flex-1 gap-1.5 sm:gap-3 min-w-0 pl-0.5">
 
                   {/* Eval bar */}
-                  <div className="w-4 sm:w-5 bg-[#1e1e22] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px]">
-                    <div
-                      className="absolute top-0 left-0 w-full transition-all duration-500 bg-gradient-to-b from-slate-200 to-slate-400"
-                      style={{ height: `${100 - evalBarWhite}%` }}
+                  <div className="w-4 sm:w-5 bg-[#161512] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px] flex flex-col">
+                    <motion.div
+                      className={isWhiteBottom ? "bg-[#111114]" : "bg-slate-200"}
+                      animate={{ height: `${100 - evalBarFill}%` }}
+                      transition={{ type: "spring", stiffness: 40, damping: 15 }}
                     />
-                    <div
-                      className="absolute bottom-0 left-0 w-full bg-[#161619]"
-                      style={{ height: `${evalBarWhite}%` }}
+                    <motion.div
+                      className={isWhiteBottom ? "bg-slate-200" : "bg-[#111114]"}
+                      animate={{ height: `${evalBarFill}%` }}
+                      transition={{ type: "spring", stiffness: 40, damping: 15 }}
                     />
                   </div>
 
