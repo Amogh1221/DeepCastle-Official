@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1211-deepcastle-api.hf.space";
+const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1221-deepcastle-api.hf.space";
 import { fetchWithFailover, getBackendUrl } from '../api-utils';
 
 import { ResignModal, ResultModal, GameOverModal } from './Modals';
