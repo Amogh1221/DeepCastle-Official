@@ -1,26 +1,27 @@
-name: DeepCastle Auto-Rebuilder
+name: DeepCastle Stealth Monitor
 on:
   schedule:
-    - cron: '*/10 * * * *' # This runs every 10 minutes (Hugging Face check interval)
-  workflow_dispatch: # Allows you to run it manually from the "Actions" tab if needed
+    - cron: '0 * * * *' # Every hour on the hour
+  workflow_dispatch: 
 
 jobs:
-  rebuild-on-crash:
+  stealth-monitor:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Hugging Face Hub
-        run: pip install huggingface_hub
+      - name: Install dependencies
+        run: pip install huggingface_hub requests
 
-      - name: Check and Rebuild
+      - name: Run Stealth Check
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python -c '
           import os
+          import time
+          import random
+          import requests
           from huggingface_hub import HfApi
 
-          # --- CONFIGURATION ---
-          # Add ALL your Hugging Face Spaces here (e.g., "username/space-name")
           SPACES = [
               "amogh1221/deepcastle-api",
               "amogh1221/deepcastle-api-2",
@@ -28,28 +29,46 @@ jobs:
               "amogh1221/deepcastle-api-4",
               "amogh1221/deepcastle-api-5"
           ]
-          # ---------------------
+
+          # 1. Start with a random "Jitter" delay (0 to 10 minutes)
+          # This makes the "start time" different every single hour.
+          jitter = random.randint(0, 600)
+          print(f"Stealth jitter: Waiting {jitter} seconds before starting...")
+          time.sleep(jitter)
 
           token = os.getenv("HF_TOKEN")
-          if not token:
-              print("ERROR: HF_TOKEN not found in secrets!")
-              exit(1)
-
           api = HfApi(token=token)
 
-          for space_id in SPACES:
+          for i, space_id in enumerate(SPACES):
               try:
-                  runtime = api.get_space_runtime(repo_id=space_id)
-                  status = runtime.stage
-                  print(f"Checking {space_id}... Status: {status}")
+                  url_name = space_id.replace("/", "-")
+                  url = f"https://{url_name}.hf.space/"
+                  
+                  print(f"\n--- Checking Server {i+1}: {space_id} ---")
+                  
+                  # 2. Ping to wake up or keep alive
+                  try:
+                      requests.get(url, timeout=10)
+                      print(f"Ping sent to {url}")
+                  except:
+                      pass
 
-                  # If it is crashed (RUNTIME_ERROR), stuck (PAUSED), or asleep (SLEEPING)
-                  if status in ["RUNTIME_ERROR", "PAUSED", "SLEEPING"]:
-                      print(f"CRITICAL: {space_id} is down! Triggering REBUILD...")
+                  # 3. Check status and repair if needed
+                  runtime = api.get_space_runtime(repo_id=space_id)
+                  if runtime.stage in ["RUNTIME_ERROR", "PAUSED"]:
+                      print(f"Repairing crashed space: {space_id}")
                       api.restart_space(repo_id=space_id)
                   else:
-                      print(f"{space_id} is healthy (Status: {status}).")
+                      print(f"Status: Healthy ({runtime.stage})")
+
+                  # 4. Add a "Human-like" gap between servers (3 to 6 minutes)
+                  if i < len(SPACES) - 1:
+                      gap = random.randint(180, 360)
+                      print(f"Stealth gap: Waiting {gap}s before checking next server...")
+                      time.sleep(gap)
 
               except Exception as e:
-                  print(f"Error checking {space_id}: {e}")
+                  print(f"Error: {e}")
+
+          print("\nStealth check complete. All servers are safe.")
           '
