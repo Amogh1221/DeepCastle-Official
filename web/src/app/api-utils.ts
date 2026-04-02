@@ -27,7 +27,8 @@ export async function fetchWithFailover(endpoint: string, options: RequestInit =
       clearTimeout(id);
 
       if (response.ok) {
-        lastWorkedIndex = BACKEND_URLS.indexOf(tryOrder[i]);
+        // Set the STARTING point for the NEXT request to the one AFTER this one
+        lastWorkedIndex = (BACKEND_URLS.indexOf(tryOrder[i]) + 1) % BACKEND_URLS.length;
         return response;
       }
       console.warn(`Backend ${baseUrl} returned ${response.status}, trying next...`);
