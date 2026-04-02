@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
+const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1211-deepcastle-api.hf.space";
+import { fetchWithFailover, getBackendUrl } from '../api-utils';
 
 import { ResignModal, ResultModal, GameOverModal } from './Modals';
 export function GamePage({ settings, onHome, onRematch, onReview }: {
@@ -55,7 +56,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   useEffect(() => {
     if (settings.mode === "p2p" && settings.matchId) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const cleanHost = API_URL.replace(/^https?:\/\//, "");
+      const cleanHost = getBackendUrl().replace(/^https?:\/\//, "");
       const wsUrl = `${protocol}//${cleanHost}/ws/${settings.matchId}`;
 
       const socket = new WebSocket(wsUrl);
@@ -163,7 +164,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   // Clear engine hash between games (prevents unbounded memory growth).
   // Also used on initial mount so a fresh game starts from a clean engine state.
   const resetEngineHash = useCallback(() => {
-    fetch(`${API_URL}/new-game`, { method: "POST" }).catch(() => {});
+    fetchWithFailover(`/new-game`, { method: "POST" }).catch(() => {});
   }, []);
 
   const stopBackgroundAnalysis = useCallback(() => {
@@ -270,7 +271,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     stopBackgroundAnalysis();
 
     try {
-      const response = await fetch(`${API_URL}/move`, {
+      const response = await fetchWithFailover(`/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fen: currentFen, time: settings.thinkTime }),
@@ -342,7 +343,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       if (controller.signal.aborted || analysisFenRef.current !== currentFen) return;
       const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
       try {
-        const response = await fetch(`${API_URL}/move`, {
+        const response = await fetchWithFailover(`/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen: currentFen, time: t }),

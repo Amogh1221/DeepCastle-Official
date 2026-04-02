@@ -22,7 +22,11 @@ jobs:
           # --- CONFIGURATION ---
           # Add ALL your Hugging Face Spaces here (e.g., "username/space-name")
           SPACES = [
-              "amogh1221/deepcastle-api"
+              "amogh1221/deepcastle-api",
+              "amogh1221/deepcastle-api-2",
+              "amogh1221/deepcastle-api-3",
+              "amogh1221/deepcastle-api-4",
+              "amogh1221/deepcastle-api-5"
           ]
           # ---------------------
 

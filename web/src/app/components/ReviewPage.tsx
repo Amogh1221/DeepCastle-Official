@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { GameSettings } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
+const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1211-deepcastle-api.hf.space";
+import { fetchWithFailover } from '../api-utils';
 
 // ── Classification colors / icons ──────────────────────────────────────────────
 const CLS_COLOR: Record<string, string> = {
@@ -130,7 +131,7 @@ export function ReviewPage({
 
     async function run() {
       try {
-        const res = await fetch(`${API_URL}/analyze-game`, {
+        const res = await fetchWithFailover(`/analyze-game`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -139,7 +140,7 @@ export function ReviewPage({
             player_color: settings.playerColor,
             start_fen: settings.startFen,
           }),
-          signal: ctrl.signal, // FIX 1: cancel fetch if user navigates away
+          signal: ctrl.signal,
         });
         if (ctrl.signal.aborted) return;
         if (!res.ok) {
@@ -197,7 +198,7 @@ export function ReviewPage({
 
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/move`, {
+        const res = await fetchWithFailover(`/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen: targetFen, time: isReviewBest ? 0.45 : 0.5 }),

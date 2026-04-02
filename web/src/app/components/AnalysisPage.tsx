@@ -6,7 +6,8 @@ import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, BookOpen, Copy, Check } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
+const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1211-deepcastle-api.hf.space";
+import { fetchWithFailover } from '../api-utils';
 
 interface AnalysisMove {
   fen: string;
@@ -60,7 +61,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
       if (ctrl.signal.aborted || analysisFenRef.current !== fen) return;
       const t = thinkTimes[Math.min(idx, thinkTimes.length - 1)];
       try {
-        const res = await fetch(`${API_URL}/move`, {
+        const res = await fetchWithFailover(`/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fen, time: t }),
