@@ -1,0 +1,51 @@
+name: DeepCastle Auto-Rebuilder
+on:
+  schedule:
+    - cron: '*/10 * * * *' # This runs every 10 minutes (Hugging Face check interval)
+  workflow_dispatch: # Allows you to run it manually from the "Actions" tab if needed
+
+jobs:
+  rebuild-on-crash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Hugging Face Hub
+        run: pip install huggingface_hub
+
+      - name: Check and Rebuild
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c '
+          import os
+          from huggingface_hub import HfApi
+
+          # --- CONFIGURATION ---
+          # Add ALL your Hugging Face Spaces here (e.g., "username/space-name")
+          SPACES = [
+              "amogh1221/deepcastle-api"
+          ]
+          # ---------------------
+
+          token = os.getenv("HF_TOKEN")
+          if not token:
+              print("ERROR: HF_TOKEN not found in secrets!")
+              exit(1)
+
+          api = HfApi(token=token)
+
+          for space_id in SPACES:
+              try:
+                  runtime = api.get_space_runtime(repo_id=space_id)
+                  status = runtime.stage
+                  print(f"Checking {space_id}... Status: {status}")
+
+                  # If it is crashed (RUNTIME_ERROR), stuck (PAUSED), or asleep (SLEEPING)
+                  if status in ["RUNTIME_ERROR", "PAUSED", "SLEEPING"]:
+                      print(f"CRITICAL: {space_id} is down! Triggering REBUILD...")
+                      api.restart_space(repo_id=space_id)
+                  else:
+                      print(f"{space_id} is healthy (Status: {status}).")
+
+              except Exception as e:
+                  print(f"Error checking {space_id}: {e}")
+          '
