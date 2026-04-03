@@ -1,7 +1,7 @@
 name: DeepCastle Stealth Monitor
 on:
   schedule:
-    - cron: '0 * * * *' # Every hour on the hour
+    - cron: '*/10 * * * *' # Every 10 minutes
   workflow_dispatch: 
 
 jobs:
@@ -30,9 +30,9 @@ jobs:
               "amogh1221/deepcastle-api-5"
           ]
 
-          # 1. Start with a random "Jitter" delay (0 to 10 minutes)
-          # This makes the "start time" different every single hour.
-          jitter = random.randint(0, 600)
+          # 1. Start with a smaller "Jitter" delay (0 to 120 seconds)
+          # This makes the "start time" different every cycle.
+          jitter = random.randint(0, 120)
           print(f"Stealth jitter: Waiting {jitter} seconds before starting...")
           time.sleep(jitter)
 
@@ -61,9 +61,9 @@ jobs:
                   else:
                       print(f"Status: Healthy ({runtime.stage})")
 
-                  # 4. Add a "Human-like" gap between servers (3 to 6 minutes)
+                  # 4. Add a smaller "Human-like" gap between servers (30 to 60 seconds)
                   if i < len(SPACES) - 1:
-                      gap = random.randint(180, 360)
+                      gap = random.randint(30, 60)
                       print(f"Stealth gap: Waiting {gap}s before checking next server...")
                       time.sleep(gap)
 
