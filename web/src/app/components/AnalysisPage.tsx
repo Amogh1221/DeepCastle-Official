@@ -349,7 +349,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
                 <button onClick={loadFen} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white shadow shadow-indigo-500/20 rounded-lg font-black text-xs transition-all shrink-0">
                   Load
                 </button>
-                <button 
+                <button
                   onClick={copyToClipboard}
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-400 hover:text-white transition-all shrink-0 flex items-center justify-center min-w-[40px]"
                   title="Copy Current FEN"
@@ -452,7 +452,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
                 <button onClick={loadFen} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white shadow shadow-indigo-500/20 rounded-lg font-black text-xs transition-all shrink-0">
                   Load
                 </button>
-                <button 
+                <button
                   onClick={copyToClipboard}
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-400 hover:text-white transition-all shrink-0 flex items-center justify-center min-w-[40px]"
                   title="Copy Current FEN"

@@ -164,7 +164,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   // Clear engine hash between games (prevents unbounded memory growth).
   // Also used on initial mount so a fresh game starts from a clean engine state.
   const resetEngineHash = useCallback(() => {
-    fetchWithFailover(`/new-game`, { method: "POST" }).catch(() => {});
+    fetchWithFailover(`/new-game`, { method: "POST" }).catch(() => { });
   }, []);
 
   const stopBackgroundAnalysis = useCallback(() => {
@@ -263,10 +263,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
   // ── Engine Fetch (for bot's actual move) ──
   const fetchMove = useCallback(async (currentFen: string) => {
-    setThinking(true); 
-    setIsPlayerTurn(false); 
+    setThinking(true);
+    setIsPlayerTurn(false);
     setBotMessage("Analyzing potential lines...");
-    
+
     // Stop background analysis while bot is thinking
     stopBackgroundAnalysis();
 
@@ -285,9 +285,9 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
         const g = new Chess(currentFen);
         let mv = g.move(data.bestmove);
         if (!mv) mv = g.move({ from: data.bestmove.slice(0, 2), to: data.bestmove.slice(2, 4), promotion: "q" });
-        
+
         if (mv) {
-          gameRef.current = g; 
+          gameRef.current = g;
           setFen(g.fen());
           setMoveHistory(prev => [...prev, { san: mv!.san, score: String(data.score?.toFixed(2) ?? "?") }]);
           setBotStats({
@@ -302,14 +302,14 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
           setBotMessage("Interesting response.");
           if (g.isGameOver()) handleGameOver(g);
-          
+
           // Sucessful move: enable player turn
           setThinking(false);
           setIsPlayerTurn(true);
           return;
         }
       }
-      
+
       // Fallback if no turn-ending move was processed
       setThinking(false);
       setIsPlayerTurn(true);
@@ -317,7 +317,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     } catch (err: any) {
       setEngineError("Engine Offline. DeepCastle will move as soon as possible...");
       setBotMessage("Engine is currently offline. DeepCastle is waiting to reconnect...");
-      
+
       // Auto-retry after 5 seconds if the engine is down
       setTimeout(() => {
         // Only retry if it's still the bot's turn at the same position and game is still active
