@@ -37,7 +37,12 @@ jobs:
           time.sleep(jitter)
 
           token = os.getenv("HF_TOKEN")
+          run_number = int(os.getenv("GITHUB_RUN_NUMBER", "0"))
           api = HfApi(token=token)
+
+          # Determine which space to rotationally restart this run (0 to 4)
+          rotation_index = run_number % len(SPACES)
+          print(f"Global Run Number: {run_number} | Targeting Index: {rotation_index}")
 
           for i, space_id in enumerate(SPACES):
               try:
@@ -55,7 +60,11 @@ jobs:
 
                   # 3. Check status and repair if needed
                   runtime = api.get_space_runtime(repo_id=space_id)
-                  if runtime.stage in ["RUNTIME_ERROR", "PAUSED"]:
+                  
+                  if i == rotation_index:
+                      print(f"Scheduled rotational restart for: {space_id}")
+                      api.restart_space(repo_id=space_id)
+                  elif runtime.stage in ["RUNTIME_ERROR", "PAUSED"]:
                       print(f"Repairing crashed space: {space_id}")
                       api.restart_space(repo_id=space_id)
                   else:
