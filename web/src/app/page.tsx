@@ -70,7 +70,7 @@ export default function App() {
       
       const n = params.get("node");
       if (n !== null) {
-        setBackendIndex(parseInt(n));
+        setBackendIndex(parseInt(n), true);
       }
       
       const t = params.get("t");
@@ -130,6 +130,7 @@ export default function App() {
       finalSettings.matchId = mid;
       
       setSettings(finalSettings);
+      setBackendIndex(getBackendIndex(), true);
       navigateTo("game");
       
       if (typeof window !== "undefined") {

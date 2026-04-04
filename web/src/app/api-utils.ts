@@ -7,18 +7,24 @@ export const BACKEND_URLS = [
 ];
 
 let lastWorkedIndex = Math.floor(Math.random() * BACKEND_URLS.length);
+let isLocked = false;
 
-export function setBackendIndex(index: number) {
+export function setBackendIndex(index: number, lock: boolean = false) {
   if (index >= 0 && index < BACKEND_URLS.length) {
     lastWorkedIndex = index;
+    isLocked = lock;
   }
 }
 
 export async function fetchWithFailover(endpoint: string, options: RequestInit = {}) {
-  const tryOrder = [
-    ...BACKEND_URLS.slice(lastWorkedIndex),
-    ...BACKEND_URLS.slice(0, lastWorkedIndex)
-  ];
+  // If we are locked to a specific node (P2P), don't try others.
+  // It's better to fail than to connect to the wrong server room.
+  const tryOrder = isLocked 
+    ? [BACKEND_URLS[lastWorkedIndex]]
+    : [
+        ...BACKEND_URLS.slice(lastWorkedIndex),
+        ...BACKEND_URLS.slice(0, lastWorkedIndex)
+      ];
 
   for (let i = 0; i < tryOrder.length; i++) {
     const baseUrl = tryOrder[i].replace(/\/$/, "");

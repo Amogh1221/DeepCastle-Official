@@ -786,10 +786,7 @@ async def analyze_game(request: AnalyzeRequest):
                 engine.analyse(board, limit, multipv=2),
                 ply_timeout,
             )
-            # Restart after initial evaluation to clear memory
-            await _detach_and_quit_engine(engine)
-        force_memory_release()
-
+        
         infos_before = infos_before if isinstance(infos_before, list) else [infos_before]
 
         counts = {
@@ -844,15 +841,15 @@ async def analyze_game(request: AnalyzeRequest):
                 fen_window.pop(0)
 
             async with _ENGINE_IO_LOCK:
-                engine = await get_stockfish_engine(hash_mb=2048)
                 infos_after_raw = await _engine_call(
                     engine,
                     engine.analyse(board, limit, multipv=2),
                     ply_timeout,
                 )
-                # Restart engine after each move in full game review
-                await _detach_and_quit_engine(engine)
-            force_memory_release()
+            
+            # Note: We no longer quit engine after every move to speed up analysis.
+            # Memory is kept stable by the 2GB Hash cap and the final cleanup below.
+            
             infos_after: List[dict] = infos_after_raw if isinstance(infos_after_raw, list) else [infos_after_raw]
 
             info_after_dict: dict = infos_after[0]
