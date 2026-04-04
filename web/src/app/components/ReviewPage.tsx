@@ -371,7 +371,7 @@ export function ReviewPage({
                   </div>
 
                   {/* Board */}
-                  <div className="relative flex h-full min-h-[380px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size] [touch-action:none]">
+                  <div className="relative flex h-full min-h-[380px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size] [touch-action:none] chessboard-container">
                     <div className="relative mx-auto aspect-square w-full sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                       <Chessboard
                         options={{
