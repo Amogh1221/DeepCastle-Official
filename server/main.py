@@ -270,7 +270,7 @@ async def _engine_call(engine, coro, timeout_sec: float):
 
 
 # ─── Background Memory Cleanup Task ───────────────────────────────────────────
-_RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "300"))
+_RAM_CLEANUP_THRESHOLD_MB = float(os.environ.get("RAM_CLEANUP_THRESHOLD_MB", "2500"))
 _RAM_CLEANUP_INTERVAL_SEC = int(os.environ.get("RAM_CLEANUP_INTERVAL_SEC", "60"))
 _CLEAR_HASH_AFTER_MOVE = os.environ.get("CLEAR_HASH_AFTER_MOVE", "1").strip().lower() not in {"0", "false", "no", "off"}
 _RESTART_ENGINE_AFTER_MOVE = os.environ.get("RESTART_ENGINE_AFTER_MOVE", "1").strip().lower() not in {"0", "false", "no", "off"}

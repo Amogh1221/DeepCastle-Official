@@ -6,7 +6,6 @@ import { Chess } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, RotateCcw, ChevronLeft, ChevronRight, Zap, BookOpen, Copy, Check } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1221-deepcastle-api.hf.space";
 import { fetchWithFailover } from '../api-utils';
 
 interface AnalysisMove {

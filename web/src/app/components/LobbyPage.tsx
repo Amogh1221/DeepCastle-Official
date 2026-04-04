@@ -1,23 +1,18 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Chessboard } from "react-chessboard";
-import { Chess } from "chess.js";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Cpu, RefreshCw, TrendingUp, Flag, RotateCcw, Lightbulb, ChevronRight, Eye, EyeOff, Play, Clock, Zap, Brain, Shield, GitBranch, Database, Trophy, ChevronLeft, X, Crown, Activity, Target, BarChart2, BookOpen, Users, Share2, Copy, Check, Hash, MessageSquare, PlayCircle
-} from "lucide-react";
-import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } from "../types";
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Share2, Copy, Check } from "lucide-react";
+import { GameSettings } from "../types";
+import { getBackendIndex } from '../api-utils';
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
-
-export function LobbyPage({ matchId, onBack }: { matchId: string; onBack: () => void }) {
+export function LobbyPage({ matchId, onBack, settings }: { matchId: string; onBack: () => void; settings: GameSettings }) {
   const [copied, setCopied] = useState(false);
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
   
   if (!isClient) return null;
-  const challengeLink = `${window.location.origin}?match=${matchId}`;
+  const challengeLink = `${window.location.origin}?match=${matchId}&node=${getBackendIndex()}&hc=${settings.playerColor}&v=${settings.variant}&t=${settings.matchSettings.timeLimit}&i=${settings.matchSettings.increment}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(challengeLink);

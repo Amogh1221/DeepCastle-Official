@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "http://localhost:7860";
 
 export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze: () => void }) {
   const specs = [

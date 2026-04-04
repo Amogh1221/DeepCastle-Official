@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { GameSettings } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1221-deepcastle-api.hf.space";
 import { fetchWithFailover } from '../api-utils';
 
 // ── Classification colors / icons ──────────────────────────────────────────────
