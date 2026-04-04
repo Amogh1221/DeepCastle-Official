@@ -33,8 +33,9 @@ export async function fetchWithFailover(endpoint: string, options: RequestInit =
       clearTimeout(id);
 
       if (response.ok) {
-        // Set the STARTING point for the NEXT request to the one AFTER this one
-        lastWorkedIndex = (BACKEND_URLS.indexOf(tryOrder[i]) + 1) % BACKEND_URLS.length;
+        // Sticky sessions: stay on the node that worked for the rest of the session
+        // This ensures P2P room affinity and better caching.
+        lastWorkedIndex = BACKEND_URLS.indexOf(tryOrder[i]);
         return response;
       }
       console.warn(`Backend ${baseUrl} returned ${response.status}, trying next...`);
