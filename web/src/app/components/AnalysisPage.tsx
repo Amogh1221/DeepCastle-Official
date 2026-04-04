@@ -192,6 +192,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
   }
 
   function handlePieceDrop({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) {
+    setMoveFrom(null); setSquareStyles({});
     if (!targetSquare) return false;
     return makeMove(sourceSquare, targetSquare);
   }
@@ -293,7 +294,7 @@ export function AnalysisPage({ onHome }: { onHome: () => void }) {
               </div>
 
               {/* Board */}
-              <div className="flex-1 bg-[#1a1a1f] p-1 sm:p-2 rounded-2xl border border-white/10 shadow-2xl relative">
+              <div className="flex-1 bg-[#1a1a1f] p-1 sm:p-2 rounded-2xl border border-white/10 shadow-2xl relative [touch-action:none]">
                 <div className="aspect-square w-full">
                   <Chessboard options={{
                     position: currentFen,

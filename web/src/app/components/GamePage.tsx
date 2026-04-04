@@ -489,9 +489,9 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   }
 
   function handlePieceDrop({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) {
-    if (!targetSquare) return false;
     setMoveFrom(null);
     setSquareStyles({});
+    if (!targetSquare) return false;
 
     if (!isPlayerTurn && !gameEnded) {
       // Set premove
@@ -748,7 +748,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               )}
             </AnimatePresence>
 
-            <div className="flex-1 bg-[#1e1e22] p-1 sm:p-2 rounded-xl border border-white/10 shadow-2xl relative">
+            <div className="flex-1 bg-[#1e1e22] p-1 sm:p-2 rounded-xl border border-white/10 shadow-2xl relative [touch-action:none]">
               <Chessboard
                 options={{
                   id: "game-board",

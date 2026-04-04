@@ -371,7 +371,7 @@ export function ReviewPage({
                   </div>
 
                   {/* Board */}
-                  <div className="relative flex h-full min-h-[380px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size]">
+                  <div className="relative flex h-full min-h-[380px] sm:min-h-0 min-w-0 flex-1 items-center justify-center bg-[#1a1a1f] p-1 sm:p-3 rounded-xl border border-white/10 shadow-2xl overflow-hidden [container-type:size] [touch-action:none]">
                     <div className="relative mx-auto aspect-square w-full sm:w-[min(100cqw,100cqh)] max-h-full max-w-full min-h-0 shrink-0">
                       <Chessboard
                         options={{
@@ -380,7 +380,6 @@ export function ReviewPage({
                           boardOrientation: orientation,
                           squareStyles,
                           arrows: boardArrows,
-                          animationDurationInMs: 300,
                           onPieceDrop: ({ sourceSquare, targetSquare }) =>
                             targetSquare ? handlePieceDrop(sourceSquare, targetSquare) : false,
                           allowDragging: tab === "analysis",
@@ -487,7 +486,7 @@ export function ReviewPage({
             <div className="flex flex-col gap-3 w-full xl:w-[min(380px,28vw)] xl:max-w-[380px] xl:flex-none xl:shrink-0 min-w-0 min-h-0 xl:overflow-hidden">
 
               {/* Tabs */}
-              <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0">
+              <div className="flex bg-[#1a1a1f] rounded-xl border border-white/5 p-1 gap-1 shrink-0 [touch-action:none]">
                 <button onClick={() => setTab("review")}
                   className={`flex-1 py-2.5 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition-all ${tab === "review" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "text-slate-500 hover:text-slate-300"}`}>
                   <BarChart2 className="w-4 h-4" /> Game Review
