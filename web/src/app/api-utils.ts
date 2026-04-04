@@ -6,7 +6,13 @@ export const BACKEND_URLS = [
   "https://amogh1221-deepcastle-api-5.hf.space"
 ];
 
-let lastWorkedIndex = 0;
+let lastWorkedIndex = Math.floor(Math.random() * BACKEND_URLS.length);
+
+export function setBackendIndex(index: number) {
+  if (index >= 0 && index < BACKEND_URLS.length) {
+    lastWorkedIndex = index;
+  }
+}
 
 export async function fetchWithFailover(endpoint: string, options: RequestInit = {}) {
   const tryOrder = [
@@ -43,4 +49,8 @@ export async function fetchWithFailover(endpoint: string, options: RequestInit =
 
 export function getBackendUrl() {
   return BACKEND_URLS[lastWorkedIndex];
+}
+
+export function getBackendIndex() {
+  return lastWorkedIndex;
 }

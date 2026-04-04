@@ -9,6 +9,7 @@ import { GamePage } from "./components/GamePage";
 import { ReviewPage } from "./components/ReviewPage";
 import { AnalysisPage } from "./components/AnalysisPage";
 import { GameSettings, AppPage } from "./types";
+import { getBackendIndex, setBackendIndex } from './api-utils';
 
 // ─── Root App ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,11 @@ export default function App() {
     const m = params.get("match");
     if (m) {
       setIncomingChallenge(m);
+      
+      const n = params.get("node");
+      if (n !== null) {
+        setBackendIndex(parseInt(n));
+      }
       
       const t = params.get("t");
       const i = params.get("i");
@@ -127,7 +133,7 @@ export default function App() {
       navigateTo("game");
       
       if (typeof window !== "undefined") {
-        const link = `${window.location.origin}?match=${mid}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}&t=${s.matchSettings.timeLimit}&i=${s.matchSettings.increment}`;
+        const link = `${window.location.origin}?match=${mid}&node=${getBackendIndex()}&hc=${s.playerColor}&v=${s.variant}${finalSettings.startFen ? '&fen=' + encodeURIComponent(finalSettings.startFen) : ''}&t=${s.matchSettings.timeLimit}&i=${s.matchSettings.increment}`;
         setShareLink(link);
       }
     } else {
