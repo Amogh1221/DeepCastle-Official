@@ -282,7 +282,9 @@ export function ReviewPage({
             <span className="text-slate-600 w-6 sm:w-7 text-right shrink-0 pr-0.5">{i + 1}.</span>
             <button type="button" data-ply={whitePly} onClick={() => setCurrentPly(whitePly)}
               className={`min-w-0 flex-1 flex items-center gap-1 px-1.5 py-1.5 rounded-md transition-all text-left ${currentPly === whitePly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-              {whiteAnalysis && (
+              {loading ? (
+                <div className="w-3.5 h-3.5 rounded-full bg-white/10 skeleton-shimmer shrink-0" />
+              ) : whiteAnalysis && (
                 <img
                   src={`/icons/${getIconName(whiteAnalysis.classification)}.png`}
                   alt=""
@@ -295,7 +297,9 @@ export function ReviewPage({
             <button type="button" data-ply={blackPly} onClick={() => blackMove && setCurrentPly(blackPly)}
               disabled={!blackMove}
               className={`min-w-0 flex-1 flex items-center gap-1 px-1.5 py-1.5 rounded-md transition-all text-left ${!blackMove ? "opacity-0 pointer-events-none" : currentPly === blackPly ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/5"}`}>
-              {blackAnalysis && (
+              {loading && blackMove ? (
+                <div className="w-3.5 h-3.5 rounded-full bg-white/10 skeleton-shimmer shrink-0" />
+              ) : blackAnalysis && (
                 <img
                   src={`/icons/${getIconName(blackAnalysis.classification)}.png`}
                   alt=""
@@ -314,26 +318,10 @@ export function ReviewPage({
   return (
     <main className="min-h-[100dvh] xl:h-[100dvh] xl:max-h-[100dvh] xl:overflow-hidden flex flex-col bg-[#111113] text-slate-100">
 
-      {/* LOADING */}
-      {loading && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4">
-          <div className="relative w-20 h-20">
-            <div className="w-20 h-20 border-4 border-emerald-500/30 rounded-full" />
-            <div className="absolute inset-0 w-20 h-20 border-4 border-t-emerald-400 rounded-full animate-spin" />
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-black bg-gradient-to-r from-emerald-400 to-teal-400 text-transparent bg-clip-text">
-              DeepCastle is analyzing your game
-            </p>
-            <p className="text-slate-500 text-sm mt-1">This may take a minute…</p>
-          </div>
-        </div>
-      )}
-
       {/* ERROR */}
-      {!loading && error && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 max-w-sm text-center px-4">
-          <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20">
+      {!loading && error ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 max-w-sm text-center px-4 mx-auto">
+          <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 mx-auto">
             <AlertTriangle className="w-8 h-8 text-red-400" />
           </div>
           <div>
@@ -341,13 +329,11 @@ export function ReviewPage({
             <p className="text-slate-400 text-sm mb-1">{error}</p>
             <p className="text-slate-500 text-xs">Make sure the DeepCastle engine is running on Hugging Face.</p>
           </div>
-          <button onClick={onHome} className="px-6 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 rounded-xl font-bold transition-all">
+          <button onClick={onHome} className="px-6 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 rounded-xl font-bold transition-all mx-auto">
             ← Go Home
           </button>
         </div>
-      )}
-
-      {!loading && !error && (
+      ) : (
         <div className="flex-1 flex flex-col min-h-0 w-full max-w-none px-3 sm:px-4 lg:px-5 pb-3 pt-2 overflow-hidden">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-3 flex-1 min-h-0 w-full xl:overflow-hidden xl:items-stretch xl:justify-start">
 
@@ -358,16 +344,22 @@ export function ReviewPage({
 
                   {/* Eval bar */}
                   <div className="w-4 sm:w-5 bg-[#161512] rounded-lg overflow-hidden border border-white/5 relative shrink-0 self-stretch min-h-[80px] flex flex-col">
-                    <motion.div
-                      className={isWhiteBottom ? "bg-[#111114]" : "bg-slate-200"}
-                      animate={{ height: `${100 - evalBarFill}%` }}
-                      transition={{ type: "spring", stiffness: 40, damping: 15 }}
-                    />
-                    <motion.div
-                      className={isWhiteBottom ? "bg-slate-200" : "bg-[#111114]"}
-                      animate={{ height: `${evalBarFill}%` }}
-                      transition={{ type: "spring", stiffness: 40, damping: 15 }}
-                    />
+                    {loading ? (
+                      <div className="w-full h-full skeleton-shimmer" />
+                    ) : (
+                      <>
+                        <motion.div
+                          className={isWhiteBottom ? "bg-[#111114]" : "bg-slate-200"}
+                          animate={{ height: `${100 - evalBarFill}%` }}
+                          transition={{ type: "spring", stiffness: 40, damping: 15 }}
+                        />
+                        <motion.div
+                          className={isWhiteBottom ? "bg-slate-200" : "bg-[#111114]"}
+                          animate={{ height: `${evalBarFill}%` }}
+                          transition={{ type: "spring", stiffness: 40, damping: 15 }}
+                        />
+                      </>
+                    )}
                   </div>
 
                   {/* Board */}
@@ -417,44 +409,50 @@ export function ReviewPage({
               </div>
 
               {/* Eval Graph */}
-              <div className="flex flex-col h-[6.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-2 py-1 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
-                <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
-                  <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
-                  {liveEval && (
-                    <span className={`text-xs font-black tabular-nums truncate min-w-0 ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
-                      {liveEval}
-                    </span>
-                  )}
+                <div className="flex flex-col h-[6.5rem] sm:h-[8.25rem] bg-[#161619] rounded-xl border border-white/5 px-2 py-1 sm:px-4 sm:py-2.5 shrink-0 relative z-10 min-h-0">
+                  <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
+                    <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest shrink-0">Evaluation</span>
+                    {loading ? (
+                      <div className="h-4 w-12 rounded bg-white/5 skeleton-shimmer" />
+                    ) : liveEval && (
+                      <span className={`text-xs font-black tabular-nums truncate min-w-0 ${parseFloat(liveEval) > 0 ? "text-emerald-400" : parseFloat(liveEval) < 0 ? "text-red-400" : "text-slate-400"}`}>
+                        {liveEval}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-h-[3rem] w-full min-w-0">
+                    {loading ? (
+                      <div className="w-full h-full rounded-md bg-white/5 skeleton-shimmer" />
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} onClick={(e: any) => {
+                          try {
+                            if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
+                          } catch { }
+                        }} style={{ cursor: "pointer" }}>
+                          <defs>
+                            <linearGradient id="evalGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <YAxis domain={[-8, 8]} hide />
+                          <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: "#262421", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", fontSize: "12px" }}
+                            itemStyle={{ color: "#a7f3d0", fontWeight: "bold" }}
+                            labelStyle={{ display: "none" }}
+                            formatter={(v: any) => [typeof v === "number" ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : v, "Eval"]}
+                          />
+                          {currentPly > 0 && chartData[currentPly] && (
+                            <ReferenceLine x={currentPly} stroke="rgba(255,255,255,0.3)" strokeWidth={2} />
+                          )}
+                          <Area type="monotone" dataKey="eval" stroke="#10b981" strokeWidth={2} fill="url(#evalGrad)" dot={false} activeDot={{ r: 5, fill: "#34d399" }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-h-[3rem] w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} onClick={(e: any) => {
-                      try {
-                        if (e?.activePayload?.length > 0) setCurrentPly(e.activePayload[0].payload.ply);
-                      } catch { }
-                    }} style={{ cursor: "pointer" }}>
-                      <defs>
-                        <linearGradient id="evalGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <YAxis domain={[-8, 8]} hide />
-                      <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: "#262421", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", fontSize: "12px" }}
-                        itemStyle={{ color: "#a7f3d0", fontWeight: "bold" }}
-                        labelStyle={{ display: "none" }}
-                        formatter={(v: any) => [typeof v === "number" ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : v, "Eval"]}
-                      />
-                      {currentPly > 0 && chartData[currentPly] && (
-                        <ReferenceLine x={currentPly} stroke="rgba(255,255,255,0.3)" strokeWidth={2} />
-                      )}
-                      <Area type="monotone" dataKey="eval" stroke="#10b981" strokeWidth={2} fill="url(#evalGrad)" dot={false} activeDot={{ r: 5, fill: "#34d399" }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
 
               {/* Nav controls (Mobile only) */}
               <div className="flex xl:hidden items-center gap-1 shrink-0">
@@ -504,42 +502,73 @@ export function ReviewPage({
                     <div className="flex-1 px-3 py-2">
                       <div className="flex justify-between mb-1.5">
                         <span className="text-[10px] uppercase text-slate-500 font-black tracking-widest">Accuracy</span>
-                        <span className="text-sm font-black text-emerald-400">{analysis?.accuracy ?? "—"}%</span>
+                        {loading ? (
+                          <div className="w-10 h-4 rounded bg-white/5 skeleton-shimmer" />
+                        ) : (
+                          <span className="text-sm font-black text-emerald-400">{analysis?.accuracy ?? "—"}%</span>
+                        )}
                       </div>
                       <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700"
-                          style={{ width: `${analysis?.accuracy ?? 0}%` }} />
+                        {loading ? (
+                          <div className="h-full w-full bg-white/10 skeleton-shimmer" />
+                        ) : (
+                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700"
+                            style={{ width: `${analysis?.accuracy ?? 0}%` }} />
+                        )}
                       </div>
                     </div>
-                    <div className="border-l border-white/5 px-3 py-2 flex flex-col items-center justify-center shrink-0">
+                    <div className="border-l border-white/5 px-3 py-2 flex flex-col items-center justify-center shrink-0 min-w-[90px]">
                       <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Perf ELO</p>
-                      <p className="text-xl font-black text-amber-400">{analysis?.estimated_elo ?? "—"}</p>
+                      {loading ? (
+                        <div className="h-6 w-12 mt-1 rounded bg-white/5 skeleton-shimmer" />
+                      ) : (
+                        <p className="text-xl font-black text-amber-400">{analysis?.estimated_elo ?? "—"}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Classification icon grid */}
                   <div className="grid grid-cols-4 sm:grid-cols-5 xl:grid-cols-4 gap-1.5 px-3 py-3 border-b border-white/5 shrink-0">
-                    {Object.entries(CLS_COLOR).map(([cls]) =>
-                      (counts[cls] ?? 0) > 0 ? (
-                        <div key={cls}
-                          style={{ borderColor: CLS_COLOR[cls] + "40", background: CLS_BG[cls] }}
-                          className="flex flex-col items-center justify-center py-2 rounded-lg border gap-1">
-                          <img
-                            src={`/icons/${getIconName(cls)}.png`}
-                            alt={cls}
-                            className="w-5 h-5"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          />
-                          <span style={{ color: CLS_COLOR[cls] }} className="text-sm font-black leading-none">{counts[cls]}</span>
-                          <span className="text-[9px] text-slate-500 font-bold truncate w-full text-center px-1">{cls}</span>
-                        </div>
-                      ) : null
+                    {loading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="flex flex-col items-center justify-center py-2 rounded-lg border border-white/5 bg-white/5 skeleton-shimmer h-[72px]" />
+                      ))
+                    ) : (
+                      Object.entries(CLS_COLOR).map(([cls]) =>
+                        (counts[cls] ?? 0) > 0 ? (
+                          <div key={cls}
+                            style={{ borderColor: CLS_COLOR[cls] + "40", background: CLS_BG[cls] }}
+                            className="flex flex-col items-center justify-center py-2 rounded-lg border gap-1">
+                            <img
+                              src={`/icons/${getIconName(cls)}.png`}
+                              alt={cls}
+                              className="w-5 h-5"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                            <span style={{ color: CLS_COLOR[cls] }} className="text-sm font-black leading-none">{counts[cls]}</span>
+                            <span className="text-[9px] text-slate-500 font-bold truncate w-full text-center px-1">{cls}</span>
+                          </div>
+                        ) : null
+                      )
                     )}
                   </div>
 
                   {/* Current move */}
-                  <div className="w-full px-4 py-3 border-b border-white/5 shrink-0 bg-black/15">
-                    {currentMove ? (
+                  <div className="w-full px-4 py-3 border-b border-white/5 shrink-0 bg-black/15 min-h-[72px]">
+                    {loading ? (
+                      <div className="flex flex-col gap-2 w-full">
+                        <div className="flex items-start gap-4 w-full">
+                          <div className="w-5 h-4 mt-1 rounded bg-white/5 skeleton-shimmer shrink-0" />
+                          <div className="flex flex-col gap-3 flex-1 min-w-0 w-full">
+                            <div className="flex items-center gap-2">
+                               <div className="w-16 h-5 rounded bg-white/5 skeleton-shimmer" />
+                               <div className="w-12 h-5 rounded bg-white/5 skeleton-shimmer" />
+                            </div>
+                            <div className="w-full max-w-[200px] h-4 rounded bg-white/5 skeleton-shimmer" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : currentMove ? (
                       <div className="flex flex-col gap-2 w-full max-w-full">
                         <div className="flex items-start gap-3 w-full">
                           <span className="text-slate-400 text-xs w-8 shrink-0 mt-0.5">
@@ -610,7 +639,19 @@ export function ReviewPage({
                       </div>
                     </div>
 
-                    {currentMove && (
+                    {loading ? (
+                       <div className="bg-black/20 rounded-xl border border-white/5 p-3">
+                         <div className="w-48 h-3 mb-4 rounded bg-white/5 skeleton-shimmer" />
+                         <div className="flex gap-2 mb-4">
+                            <div className="w-16 h-6 rounded bg-white/5 skeleton-shimmer" />
+                            <div className="w-20 h-6 rounded bg-white/5 skeleton-shimmer" />
+                         </div>
+                         <div className="grid grid-cols-2 gap-2 mt-2">
+                           <div className="h-[60px] rounded bg-white/5 skeleton-shimmer" />
+                           <div className="h-[60px] rounded bg-white/5 skeleton-shimmer" />
+                         </div>
+                       </div>
+                    ) : currentMove && (
                       <div className="bg-black/20 rounded-xl border border-white/5 p-3">
                         <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-2">Review Data for This Move</p>
                         <div className="flex items-center gap-2 mb-3">
