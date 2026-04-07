@@ -130,12 +130,22 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
   // ── Timeout handling ──
   useEffect(() => {
     if (whiteTime === 0 && !gameEnded && hasTimer) {
-      endGame(playerColor === "black", "White's time is up!");
+      if (settings.mode === "ai") {
+        if (playerColor === "white") endGame(false, "Game abandoned. DeepCastle wins.");
+        else endGame(true, "DeepCastle timed out. You Win!");
+      } else {
+        endGame(playerColor === "black", "White's time is up!");
+      }
     }
     if (blackTime === 0 && !gameEnded && hasTimer) {
-      endGame(playerColor === "white", "Black's time is up!");
+      if (settings.mode === "ai") {
+        if (playerColor === "black") endGame(false, "Game abandoned. DeepCastle wins.");
+        else endGame(true, "DeepCastle timed out. You Win!");
+      } else {
+        endGame(playerColor === "white", "Black's time is up!");
+      }
     }
-  }, [whiteTime, blackTime, gameEnded, hasTimer, playerColor]);
+  }, [whiteTime, blackTime, gameEnded, hasTimer, playerColor, settings.mode]);
 
 
 
@@ -232,7 +242,10 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
 
   const endGame = (isWin: boolean, subtitle: string) => {
     setGameEnded(true);
-    setGameResult({ title: isWin ? "Victory!" : "DeepCastle Wins", subtitle, isWin });
+    let title = isWin ? "Victory!" : "You Lose";
+    if (!isWin && settings.mode === "ai") title = "DeepCastle Wins";
+    else if (!isWin && settings.mode === "p2p") title = "Opponent Wins";
+    setGameResult({ title, subtitle, isWin });
     setShowResultModal(true);
   };
 
@@ -297,7 +310,12 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
           setStats(prev => ({ ...prev, score: data.score ?? prev.score, mateIn: data.mate_in ?? null }));
 
           if (hasTimer) {
-            setBlackTime(t => t + settings.matchSettings.increment);
+            if (settings.mode === "ai") {
+              setWhiteTime(settings.matchSettings.timeLimit * 60);
+              setBlackTime(settings.matchSettings.timeLimit * 60);
+            } else {
+              setBlackTime(t => t + settings.matchSettings.increment);
+            }
           }
 
           setBotMessage("Interesting response.");
@@ -427,9 +445,11 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
     if (g.isCheckmate()) {
       const loser = g.turn(); // whoever is to move is in checkmate
       const playerWon = loser === botChessColor;
+      const opponentName = settings.mode === "ai" ? "DeepCastle" : "your opponent";
+      
       setGameResult({
         title: playerWon ? "You Win!" : "You Lose",
-        subtitle: playerWon ? "Brilliant! You checkmated DeepCastle." : "Checkmate. DeepCastle wins.",
+        subtitle: playerWon ? `Brilliant! You checkmated ${opponentName}.` : `Checkmate. ${settings.mode === "ai" ? "DeepCastle" : "Opponent"} wins.`,
         isWin: playerWon,
       });
     } else if (g.isDraw()) {
@@ -448,10 +468,15 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
       gameRef.current = copy; setFen(copy.fen());
       setMoveHistory(prev => [...prev, { san: mv!.san, score: "USR" }]);
 
-      // Apply increment
+      // Apply increment or reset AFK timer
       if (hasTimer) {
-        if (playerChessColor === "w") setWhiteTime(t => t + settings.matchSettings.increment);
-        else setBlackTime(t => t + settings.matchSettings.increment);
+        if (settings.mode === "ai") {
+          setWhiteTime(settings.matchSettings.timeLimit * 60);
+          setBlackTime(settings.matchSettings.timeLimit * 60);
+        } else {
+          if (playerChessColor === "w") setWhiteTime(t => t + settings.matchSettings.increment);
+          else setBlackTime(t => t + settings.matchSettings.increment);
+        }
       }
 
       setBotMessage("Thinking..."); setMoveFrom(null); setSquareStyles({}); setHintArrow(null);

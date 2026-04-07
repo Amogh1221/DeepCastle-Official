@@ -14,7 +14,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    // Hide splash screen after 1.5s to let loading bar finish quickly
+    // Hide splash screen after 1.150s to let loading bar finish quickly
     const timer = setTimeout(() => setShowSplash(false), 1150);
     return () => clearTimeout(timer);
   }, []);
