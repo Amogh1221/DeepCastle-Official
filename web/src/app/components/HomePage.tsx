@@ -14,8 +14,8 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    // Hide splash screen after 2.2s
-    const timer = setTimeout(() => setShowSplash(false), 2200);
+    // Hide splash screen after 3s to let loading bar finish
+    const timer = setTimeout(() => setShowSplash(false), 3000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -116,8 +116,8 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
         {showSplash && (
           <motion.div 
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
+            exit={{ opacity: 0, scale: 1.1, filter: "blur(20px)" }}
+            transition={{ duration: 1.2, ease: "easeInOut" }}
             className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0d0d0f]"
           >
             <motion.div 
@@ -145,16 +145,14 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mt-8 flex gap-2"
+              className="mt-8 w-48 sm:w-64 h-1 sm:h-1.5 bg-white/10 rounded-full overflow-hidden"
             >
-              {[0, 1, 2].map((i) => (
-                <motion.div 
-                  key={i}
-                  className="w-2 h-2 rounded-full bg-indigo-400/80"
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ repeat: Infinity, delay: i * 0.15, duration: 0.6, ease: "easeInOut" }}
-                />
-              ))}
+              <motion.div 
+                className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-violet-500"
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 2.2, ease: "easeInOut", delay: 0.8 }}
+              />
             </motion.div>
           </motion.div>
         )}
