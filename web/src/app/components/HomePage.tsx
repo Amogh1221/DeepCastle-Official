@@ -11,6 +11,14 @@ import { GameSettings, MatchSettings, Stats, PlayerColor, GameMode, AppPage } fr
 
 
 export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze: () => void }) {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // Hide splash screen after 2.2s
+    const timer = setTimeout(() => setShowSplash(false), 2200);
+    return () => clearTimeout(timer);
+  }, []);
+
   const specs = [
     {
       icon: <Brain className="w-6 h-6" />,
@@ -102,7 +110,56 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
   ];
 
   return (
-    <main className="min-h-screen bg-[#0d0d0f] text-slate-100 overflow-x-hidden">
+    <main className="min-h-screen bg-[#0d0d0f] text-slate-100 overflow-x-hidden relative">
+      {/* ── Splash Screen ── */}
+      <AnimatePresence>
+        {showSplash && (
+          <motion.div 
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0d0d0f]"
+          >
+            <motion.div 
+              initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
+              animate={{ scale: 1, opacity: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="w-24 h-24 sm:w-32 sm:h-32 rounded-[25px] sm:rounded-[32px] overflow-hidden shadow-[0_0_80px_rgba(255,255,255,0.1)] mb-6 relative"
+            >
+              <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-cover" />
+              <motion.div 
+                className="absolute inset-0 rounded-[25px] sm:rounded-[32px] border-[3px] border-indigo-400/30"
+                animate={{ scale: [1, 1.15, 1], opacity: [1, 0, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              />
+            </motion.div>
+            <motion.h1 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent tracking-widest uppercase"
+            >
+              DeepCastle
+            </motion.h1>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="mt-8 flex gap-2"
+            >
+              {[0, 1, 2].map((i) => (
+                <motion.div 
+                  key={i}
+                  className="w-2 h-2 rounded-full bg-indigo-400/80"
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ repeat: Infinity, delay: i * 0.15, duration: 0.6, ease: "easeInOut" }}
+                />
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Ambient bg ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <motion.div 
