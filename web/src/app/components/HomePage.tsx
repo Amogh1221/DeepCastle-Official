@@ -105,9 +105,21 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
     <main className="min-h-screen bg-[#0d0d0f] text-slate-100 overflow-x-hidden">
       {/* ── Ambient bg ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-slate-700/5 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-emerald-700/5 blur-[120px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-slate-900/5 blur-[80px]" />
+        <motion.div 
+          animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
+          transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }}
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-slate-700/5 blur-[120px]" 
+        />
+        <motion.div 
+          animate={{ x: [0, -40, 0], y: [0, -50, 0] }}
+          transition={{ repeat: Infinity, duration: 16, ease: "easeInOut", delay: 1 }}
+          className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-emerald-700/5 blur-[120px]" 
+        />
+        <motion.div 
+          animate={{ scale: [1, 1.1, 1], opacity: [1, 0.8, 1] }}
+          transition={{ repeat: Infinity, duration: 20, ease: "easeInOut" }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-slate-900/5 blur-[80px]" 
+        />
       </div>
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
@@ -120,11 +132,20 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           className="flex flex-col items-center text-center mb-20"
         >
           {/* Logo */}
-          <div className="mb-6 sm:mb-8">
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(255,255,255,0.07)]">
+          <motion.div 
+            className="mb-6 sm:mb-8"
+            initial={{ scale: 0, rotate: -20, opacity: 0 }}
+            animate={{ scale: 1, rotate: 0, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 220, damping: 15, delay: 0.1 }}
+          >
+            <motion.div 
+              className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(255,255,255,0.07)]"
+              animate={{ y: [0, -12, 0] }}
+              transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+            >
               <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-cover" />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight mb-4 bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent">
             DeepCastle
