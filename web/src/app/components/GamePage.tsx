@@ -668,7 +668,7 @@ export function GamePage({ settings, onHome, onRematch, onReview }: {
               <div className="min-w-0">
                 <h3 className="font-black text-xs sm:text-sm text-slate-100 flex items-center gap-2 truncate">
                   {settings.mode === "ai" ? "DeepCastle" : "Opponent"}
-                  <span className="hidden sm:inline-block text-orange-500 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
+                  <span className="inline-block text-orange-500 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 bg-orange-500/10 rounded border border-orange-500/20">
                     {settings.mode === "ai" ? "Elo: 1" : "Joined"}
                   </span>
                 </h3>
