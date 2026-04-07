@@ -15,7 +15,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
 
   useEffect(() => {
     // Hide splash screen after 1.5s to let loading bar finish quickly
-    const timer = setTimeout(() => setShowSplash(false), 1500);
+    const timer = setTimeout(() => setShowSplash(false), 750);
     return () => clearTimeout(timer);
   }, []);
 
@@ -114,26 +114,26 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
       {/* ── Splash Screen ── */}
       <AnimatePresence>
         {showSplash && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0d0d0f]"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
               animate={{ scale: 1, opacity: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="w-24 h-24 sm:w-32 sm:h-32 rounded-[25px] sm:rounded-[32px] overflow-hidden shadow-[0_0_80px_rgba(255,255,255,0.1)] mb-6 relative"
             >
               <img src="/DC_logo.png" alt="DeepCastle Logo" className="w-full h-full object-cover" />
-              <motion.div 
+              <motion.div
                 className="absolute inset-0 rounded-[25px] sm:rounded-[32px] border-[3px] border-indigo-400/30"
                 animate={{ scale: [1, 1.15, 1], opacity: [1, 0, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                transition={{ repeat: Infinity, duration: 1.0, ease: "easeInOut" }}
               />
             </motion.div>
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
@@ -141,13 +141,13 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
             >
               DeepCastle
             </motion.h1>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
               className="mt-8 w-48 sm:w-64 h-1 sm:h-1.5 bg-white/10 rounded-full overflow-hidden"
             >
-              <motion.div 
+              <motion.div
                 className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-violet-500"
                 initial={{ width: "0%" }}
                 animate={{ width: "100%" }}
@@ -160,20 +160,20 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
 
       {/* ── Ambient bg ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <motion.div 
+        <motion.div
           animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
           transition={{ repeat: Infinity, duration: 12, ease: "easeInOut" }}
-          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-slate-700/5 blur-[120px]" 
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-slate-700/5 blur-[120px]"
         />
-        <motion.div 
+        <motion.div
           animate={{ x: [0, -40, 0], y: [0, -50, 0] }}
           transition={{ repeat: Infinity, duration: 16, ease: "easeInOut", delay: 1 }}
-          className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-emerald-700/5 blur-[120px]" 
+          className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-emerald-700/5 blur-[120px]"
         />
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.1, 1], opacity: [1, 0.8, 1] }}
           transition={{ repeat: Infinity, duration: 20, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-slate-900/5 blur-[80px]" 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-slate-900/5 blur-[80px]"
         />
       </div>
 
@@ -187,13 +187,13 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           className="flex flex-col items-center text-center mb-20"
         >
           {/* Logo */}
-          <motion.div 
+          <motion.div
             className="mb-6 sm:mb-8"
             initial={{ scale: 0, rotate: -20, opacity: 0 }}
             animate={{ scale: 1, rotate: 0, opacity: 1 }}
             transition={{ type: "spring", stiffness: 220, damping: 15, delay: 0.1 }}
           >
-            <motion.div 
+            <motion.div
               className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(255,255,255,0.07)]"
               animate={{ y: [0, -12, 0] }}
               transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
@@ -281,24 +281,22 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
                   transition={{ delay: 0.35 + i * 0.07 }}
                   className="flex items-start gap-3 sm:gap-6 pl-12 sm:pl-20 relative"
                 >
-                  <div className={`absolute left-1 sm:left-5 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-black text-white shadow-lg ${
-                    t.version.includes('Current') || t.version.includes('v7')
-                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-emerald-500/40'
-                      : t.version === 'v5'
+                  <div className={`absolute left-1 sm:left-5 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-black text-white shadow-lg ${t.version.includes('Current') || t.version.includes('v7')
+                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-emerald-500/40'
+                    : t.version === 'v5'
                       ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-500/30'
                       : 'bg-gradient-to-br from-slate-600 to-slate-700 shadow-slate-500/20'
-                  }`}>
+                    }`}>
                     {i + 1}
                   </div>
                   <div className="flex-1 bg-[#161619] border border-white/5 rounded-xl p-3 sm:p-4">
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full border ${
-                        t.version.includes('Current') || t.version.includes('v7')
-                          ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
-                          : t.version === 'v5'
+                      <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full border ${t.version.includes('Current') || t.version.includes('v7')
+                        ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                        : t.version === 'v5'
                           ? 'text-red-400 bg-red-400/10 border-red-400/20'
                           : 'text-slate-400 bg-slate-400/10 border-slate-400/20'
-                      }`}>{t.version}</span>
+                        }`}>{t.version}</span>
                       <span className="font-bold text-xs sm:text-sm text-white">{t.label}</span>
                       {t.elo === 'N/A' && (
                         <span className="ml-auto text-[10px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded border border-red-400/20">Broken</span>
@@ -320,7 +318,7 @@ export function HomePage({ onPlay, onAnalyze }: { onPlay: () => void; onAnalyze:
           className="flex flex-col items-center gap-3 pb-8"
         >
           <p className="text-xs text-slate-700">No account needed · Play directly in browser</p>
-          
+
           <div className="mt-4">
             <a
               href="https://github.com/Amogh1221/DeepCastle-Official"
