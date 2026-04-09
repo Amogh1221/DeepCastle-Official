@@ -297,5 +297,3 @@ uvicorn main:app --reload --port 7860
 - **Training dataset**: `large_gensfen_multipvdiff_100_d9.binpack` from the [official Stockfish NNUE training datasets](https://github.com/official-stockfish/nnue-pytorch/wiki/Training-datasets)
 - **Search engine base**: Derived from [Stockfish](https://github.com/official-stockfish/Stockfish) C++ source (GPLv3)
 - **Incbin**: [graphitemaster/incbin](https://github.com/graphitemaster/incbin) (Unlicense)
-
-*Developed by Amogh Gupta*
