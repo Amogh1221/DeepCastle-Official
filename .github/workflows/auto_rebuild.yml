@@ -24,10 +24,7 @@ jobs:
 
           SPACES = [
               "amogh1221/deepcastle-api",
-              "amogh1221/deepcastle-api-2",
-              "amogh1221/deepcastle-api-3",
-              "amogh1221/deepcastle-api-4",
-              "amogh1221/deepcastle-api-5"
+              "amogh1221/deepcastle-api-2"
           ]
 
           # 1. Start with a smaller "Jitter" delay (0 to 120 seconds)

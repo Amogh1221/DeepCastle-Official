@@ -1,9 +1,6 @@
 export const BACKEND_URLS = [
   process.env.NEXT_PUBLIC_ENGINE_API_URL || "https://amogh1221-deepcastle-api.hf.space",
-  "https://amogh1221-deepcastle-api-2.hf.space",
-  "https://amogh1221-deepcastle-api-3.hf.space",
-  "https://amogh1221-deepcastle-api-4.hf.space",
-  "https://amogh1221-deepcastle-api-5.hf.space"
+  "https://amogh1221-deepcastle-api-2.hf.space"
 ];
 
 let lastWorkedIndex = Math.floor(Math.random() * BACKEND_URLS.length);
