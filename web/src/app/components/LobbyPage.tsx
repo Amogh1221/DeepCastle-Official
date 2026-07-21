@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Share2, Copy, Check } from "lucide-react";
 import { GameSettings } from "../types";
-import { getBackendIndex } from '../api-utils';
 
 export function LobbyPage({ matchId, onBack, settings }: { matchId: string; onBack: () => void; settings: GameSettings }) {
   const [copied, setCopied] = useState(false);
@@ -12,7 +11,7 @@ export function LobbyPage({ matchId, onBack, settings }: { matchId: string; onBa
   useEffect(() => setIsClient(true), []);
   
   if (!isClient) return null;
-  const challengeLink = `${window.location.origin}?match=${matchId}&node=${getBackendIndex()}&hc=${settings.playerColor}&v=${settings.variant}&t=${settings.matchSettings.timeLimit}&i=${settings.matchSettings.increment}`;
+  const challengeLink = `${window.location.origin}?match=${matchId}&hc=${settings.playerColor}&v=${settings.variant}&t=${settings.matchSettings.timeLimit}&i=${settings.matchSettings.increment}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(challengeLink);

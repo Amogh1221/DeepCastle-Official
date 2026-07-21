@@ -23,8 +23,7 @@ jobs:
           from huggingface_hub import HfApi
 
           SPACES = [
-              "amogh1221/deepcastle-api",
-              "amogh1221/deepcastle-api-2"
+              "amogh1221/deepcastle-api"
           ]
 
           # 1. Start with a smaller "Jitter" delay (0 to 120 seconds)
