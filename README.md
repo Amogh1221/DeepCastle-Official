@@ -289,6 +289,7 @@ uvicorn main:app --reload --port 7860
 - **Cloud NPS ceiling**: ~400k–600k NPS on cloud CPU vs ~5M+ on a modern desktop. SSE4.1 SIMD compilation provides a practical baseline.
 - **No WDL blending**: Training uses pure score labels (λ=1.0). Win/Draw/Loss outcome blending is planned via `start_lambda`/`end_lambda` in `TrainingConfig`.
 
+
 ---
 
 ## Credits
